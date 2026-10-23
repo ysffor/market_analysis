@@ -2,9 +2,9 @@
 
 一个静态网页加一份分析文档，用来观察过去 20 年黄金、原油、10 年期美债收益率的走势，以及它们和美元流动性的关系。
 
-**在线查看：<https://ysffor.github.io/market_analysis/>**（手机浏览器也可以打开）
+**在线查看：** 电脑版 <https://ysffor.github.io/market_analysis/> ｜ 手机版 <https://ysffor.github.io/market_analysis/mobile.html>
 
-- **页面**（`docs/index.html`）：单个 HTML 文件，数据内嵌，打开不需要联网，也不依赖任何外部库。
+- **页面**：电脑版 `docs/index.html` 和手机版 `docs/mobile.html`。每个都是单个 HTML 文件，数据内嵌，打开不需要联网，也不依赖任何外部库。
 - **分析文档**（[docs/ANALYSIS.md](docs/ANALYSIS.md)）：分析思路、主要发现、判断流程和局限。文档里的数字由脚本自动计算回填，每次更新还会复核结论是否仍然成立。
 
 ## 页面内容
@@ -18,6 +18,8 @@
 
 所有图都支持 20 / 10 / 5 / 3 / 1 年区间切换和悬停读数，支持亮色和暗色模式，底部有完整数据表。
 
+手机版的图和电脑版相同，只是针对窄屏重新排版：读数固定显示在每张图上方，在图上点按或左右拖动即可更新，默认显示最新一个采样点。电脑版在窄屏上打开时，会提示切换到手机版。
+
 ## 快速开始
 
 依赖：bash、curl、Python 3 和 numpy。Windows 上请用 Git Bash 运行。
@@ -27,7 +29,7 @@ pip install -r requirements.txt
 bash tools/update.sh        # 下载数据 → 生成 docs/index.html → 更新 docs/ANALYSIS.md 里的数字
 ```
 
-然后用浏览器打开 `docs/index.html`。
+然后用浏览器打开 `docs/index.html`（电脑版）或 `docs/mobile.html`（手机版）。
 
 已经下载过数据、只想重新生成时，用 `bash tools/update.sh --no-fetch`。
 
@@ -38,19 +40,22 @@ bash tools/update.sh        # 下载数据 → 生成 docs/index.html → 更新
 ├── requirements.txt
 ├── docs/
 │   ├── ANALYSIS.md      分析文档（AUTO 区块由脚本生成）
-│   ├── index.html       生成的页面（GitHub Pages 发布这个文件）
+│   ├── index.html       生成的电脑版页面（GitHub Pages 首页）
+│   ├── mobile.html      生成的手机版页面
 │   └── .nojekyll
 ├── tools/
 │   ├── update.sh        一键更新
 │   ├── fetch.sh         下载原始数据
 │   ├── sample.py        每 15 天采样，输出页面数据
-│   ├── template.html    页面模板
+│   ├── template.html    电脑版页面模板
+│   ├── template_mobile.html  手机版页面模板
+│   ├── common.js        两个页面共用的数据处理与分析逻辑（构建时内联）
 │   └── report.py        计算文档里的数字、复核结论、维护事件列表
 ├── raw/                 下载的原始数据（不进 git）
 └── build/               中间数据（不进 git）
 ```
 
-修改页面请改 `tools/template.html`，不要直接改生成的 `docs/index.html`。文档的维护约定见 [ANALYSIS.md 第 8 节](docs/ANALYSIS.md#8-更新与维护)。
+修改页面请改模板，不要直接改生成的 `docs/*.html`。分析逻辑、图表配置、QE/QT 时期等两个页面共用的内容在 `tools/common.js` 里，只改一处；排版和交互分别在 `template.html` 和 `template_mobile.html` 里。文档的维护约定见 [ANALYSIS.md 第 8 节](docs/ANALYSIS.md#8-更新与维护)。
 
 ## 数据来源
 

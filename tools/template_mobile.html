@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<title>黄金 · 原油 · 美债收益率（手机版）</title>
+<!--
+  手机版页面：与电脑版（template.html）共用 tools/common.js 里的数据处理与分析逻辑，只是排版和交互针对窄屏重做。
+  读数固定在每张图上方，点按或左右拖动图表更新读数，手指离开后保留；默认显示最新一个采样点。
+  Mobile page: shares tools/common.js with the desktop template; layout and touch interaction are redone for narrow screens.
+-->
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --up: #006300;
+    --down: #b3261e;
+    --s-gold: #eb6834;
+    --s-oil: #2a78d6;
+    --s-y10: #1baf7a;
+    --s-real: #6250d6;
+    --s-be: #eda100;
+    --s-tga: #e87ba4;
+    --s-rrp: #008300;
+    --wash: rgba(11,11,11,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255,255,255,0.10);
+      --up: #0ca30c;
+      --down: #e66767;
+      --s-gold: #d95926;
+      --s-oil: #3987e5;
+      --s-y10: #199e70;
+      --s-real: #9085e9;
+      --s-be: #c98500;
+      --s-tga: #d55181;
+      --s-rrp: #008300;
+      --wash: rgba(255,255,255,0.06);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  html, body { margin: 0; }
+  body.viz-root {
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 12px max(12px, env(safe-area-inset-right)) 24px max(12px, env(safe-area-inset-left));
+  }
+  a { color: var(--s-oil); }
+  .top { display: flex; align-items: baseline; gap: 8px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; line-height: 1.3; }
+  .alt { margin-left: auto; font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+  .sub { color: var(--text-secondary); font-size: 12px; margin: 4px 0 0; }
+  .bar {
+    position: sticky; top: 0; z-index: 3; margin: 8px -12px 12px; padding: 8px 12px;
+    background: var(--page); border-bottom: 1px solid var(--border);
+  }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-1); }
+  .seg button {
+    flex: 1; font: inherit; font-size: 14px; color: var(--text-secondary); background: transparent; border: 0;
+    padding: 8px 0; min-height: 36px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { color: var(--text-primary); font-weight: 600; background: var(--wash); }
+  .seg.small button { flex: none; padding: 4px 12px; min-height: 30px; font-size: 13px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-width: 0; }
+  .tile .name { color: var(--text-secondary); font-size: 12px; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+  .tile .key { width: 12px; height: 2px; border-radius: 1px; flex: none; }
+  .tile .val { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .tile .unit { font-size: 11px; color: var(--text-muted); }
+  .tile .chg { font-size: 12px; font-weight: 600; margin-top: 2px; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  h2.sec { margin: 20px 0 0; font-size: 16px; }
+  .card > h2 { margin-bottom: 4px; }
+  .card-head .seg { margin-left: auto; }
+  .readout { font-size: 13px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+  .readout .d { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
+  .readout .row { display: grid; grid-template-columns: 14px auto 1fr auto; gap: 6px; align-items: baseline; line-height: 1.5; }
+  .readout .row i { display: inline-block; width: 12px; height: 2px; border-radius: 1px; align-self: center; }
+  .readout .row b { font-weight: 600; }
+  .readout .row em { font-style: normal; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .readout .row small { color: var(--text-muted); font-size: 12px; }
+  .readout .grp { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .card svg { width: 100%; display: block; outline: none; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+  .tick text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .panel-title { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
+  .panel-key { fill: var(--text-secondary); font-size: 11px; }
+  .band-label { fill: var(--text-muted); font-size: 10px; }
+  .hint { color: var(--text-muted); font-size: 12px; margin: 6px 0 0; }
+  .reading { color: var(--text-secondary); font-size: 13px; margin: 8px 0 0; line-height: 1.6; }
+  details { margin-top: 4px; }
+  summary { cursor: pointer; color: var(--text-secondary); padding: 8px 0; }
+  .tbl-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--grid); }
+  th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface-1); }
+  th { position: sticky; top: 0; background: var(--surface-1); color: var(--text-secondary); font-weight: 600; z-index: 1; }
+  th:first-child { z-index: 2; }
+  .note { color: var(--text-muted); font-size: 12px; margin-top: 12px; line-height: 1.6; }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap">
+  <div class="top"><h1 id="title"></h1><a class="alt" href="index.html">电脑版</a></div>
+  <p class="sub" id="sub"></p>
+
+  <div class="bar"><div class="seg" id="range"></div></div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <div class="card-head"><h2>涨跌幅对比（起点 = 100）</h2><div class="seg small" id="scale"></div></div>
+    <div class="readout" id="ro1"></div>
+    <svg id="chart" tabindex="0" role="img" aria-label="黄金、原油、10 年期美债收益率指数走势图"></svg>
+    <p class="hint">在图上点按或左右拖动，查看任意日期的数值。</p>
+  </section>
+
+  <h2 class="sec">美元流动性：价格层 vs 数量层</h2>
+  <p class="sub">上面两幅是价格/预期层，最下面是数量层。阴影是美联储扩表（QE）和缩表（QT）的时期。</p>
+  <section class="card" style="margin-top:8px">
+    <div class="readout" id="ro2"></div>
+    <svg id="liq" tabindex="0" role="img" aria-label="10 年期实际利率、美元指数、美联储净流动性分面图"></svg>
+  </section>
+
+  <section class="card">
+    <h2>拆解：变化来自哪一项</h2>
+    <p class="sub" style="margin:0 0 8px">实际利率变化 = 名义 + (−通胀预期)；净流动性变化 = 总资产 + (−TGA) + (−逆回购)。</p>
+    <div class="readout" id="ro3"></div>
+    <svg id="decomp" tabindex="0" role="img" aria-label="实际利率与净流动性变化拆解图"></svg>
+  </section>
+
+  <section class="card">
+    <h2>领先滞后：净流动性 vs 实际利率</h2>
+    <p class="sub" style="margin:0 0 8px">两者 90 天变化在不同时间错位下的相关系数，点柱子查看。</p>
+    <div class="readout" id="ro4"></div>
+    <svg id="lag" tabindex="0" role="img" aria-label="净流动性与实际利率领先滞后相关系数柱状图"></svg>
+    <p class="reading" id="reading"></p>
+  </section>
+
+  <details>
+    <summary>数据表（每 15 天一个采样点，可左右滑动）</summary>
+    <div class="tbl-wrap"><table id="tbl"></table></div>
+  </details>
+
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+const DATA = __DATA__;
+/*__COMMON__*/
+const state = { years: 20, scale: "log" };
+
+// 读数框：日期 + 每行（色标、数值、名称、补充）
+function readout(box, title, rows, foot) {
+  box.textContent = "";
+  h("div", { className: "d", textContent: title }, box);
+  for (const r of rows) {
+    const row = h("div", { className: "row" }, box);
+    h("i", {}, row).style.background = r.color;
+    h("b", { textContent: r.value }, row);
+    h("em", { textContent: r.name }, row);
+    h("small", { textContent: r.extra || "" }, row);
+  }
+  if (foot) h("div", { className: "grp", textContent: foot }, box);
+}
+
+// 点按或拖动选点；手指离开后保持当前选择。键盘左右键逐点移动
+function bindScrub(svg, W, x0, iw, xs, select, cur) {
+  const t0 = xs[0].getTime(), t1 = xs[xs.length - 1].getTime();
+  const pick = e => {
+    const r = svg.getBoundingClientRect();
+    const t = t0 + ((e.clientX - r.left) * W / r.width - x0) / iw * (t1 - t0);
+    let lo = 0, hi = xs.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m].getTime() < t) lo = m; else hi = m; }
+    cur = Math.abs(xs[lo].getTime() - t) <= Math.abs(xs[hi].getTime() - t) ? lo : hi;
+    select(cur);
+  };
+  svg.onpointerdown = pick;
+  svg.onpointermove = pick;
+  svg.onkeydown = e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    cur = Math.max(0, Math.min(xs.length - 1, cur + (e.key === "ArrowRight" ? 1 : -1)));
+    select(cur);
+  };
+}
+
+// X 轴：按可用宽度选年份间隔，保证标签不挤
+function xAxis(svg, xs, X, y, iw) {
+  const g = el("g", { class: "tick" }, svg);
+  const t0 = xs[0].getTime(), t1 = xs[xs.length - 1].getTime();
+  const spanYears = (t1 - t0) / 3.156e10;
+  if (spanYears > 1.5) {
+    const every = [1, 2, 4, 5, 10].find(s => iw / spanYears * s >= 44) || 10;
+    for (let yy = xs[0].getFullYear() + 1; yy <= xs[xs.length - 1].getFullYear(); yy++) {
+      if (yy % every) continue;
+      el("text", { x: X(new Date(yy, 0, 1)), y, "text-anchor": "middle" }, g).textContent = String(yy);
+    }
+  } else {
+    const d = new Date(xs[0].getFullYear(), xs[0].getMonth() + 1, 1);
+    for (; d <= xs[xs.length - 1]; d.setMonth(d.getMonth() + 3))
+      el("text", { x: X(d), y, "text-anchor": "middle" }, g).textContent = `${d.getFullYear() % 100}/${d.getMonth() + 1}`;
+  }
+}
+
+function yGrid(svg, ticks, Y, x0, x1, fmt) {
+  const g = el("g", { class: "tick" }, svg);
+  for (const v of ticks) {
+    el("line", { x1: x0, x2: x1, y1: Y(v), y2: Y(v), stroke: "var(--grid)", "stroke-width": 1 }, g);
+    el("text", { x: x0 - 6, y: Y(v) + 4, "text-anchor": "end" }, g).textContent = fmt(v);
+  }
+}
+const fewer = t => t.length > 5 ? t.filter((_, i) => i % 2 === 0) : t;
+
+function render() {
+  const [i0, i1] = sliceIdx(state.years);
+  const xs = dates.slice(i0, i1 + 1);
+  $("title").textContent = `过去 ${state.years} 年：黄金 · 原油 · 美债`;
+  document.title = $("title").textContent + "（手机版）";
+  $("sub").textContent = `${fmtDate(xs[0])} 至 ${fmtDate(xs[xs.length - 1])}，每 15 天一个采样点`;
+  renderTiles(i0, i1);
+  renderMain(i0, i1, xs);
+  renderPanels("liq", "ro2", LIQ, i0, i1, xs, i =>
+    `隐含通胀预期（名义 − 实际）${(DATA.y10[i] - DATA.real[i]).toFixed(2)}%`);
+  renderPanels("decomp", "ro3", DECOMP, i0, i1, xs, i => {
+    const parts = DECOMP[1].lines.slice(1).map(l => [l.name, l.f(i, i0)]).filter(p => p[1] != null);
+    if (!parts.length || i === i0) return "";
+    return "净流动性变化的最大来源：" + parts.reduce((a, b) => Math.abs(b[1]) > Math.abs(a[1]) ? b : a)[0];
+  });
+  renderLag(i0, i1);
+}
+
+function renderTiles(i0, i1) {
+  const box = $("tiles");
+  box.textContent = "";
+  for (const s of SERIES) {
+    const raw = DATA[s.key];
+    let a = null; for (let i = i0; i <= i1; i++) if (raw[i] != null) { a = raw[i]; break; }
+    const b = raw[i1];
+    const tile = h("div", { className: "tile" }, box);
+    const nm = h("div", { className: "name" }, tile);
+    h("i", { className: "key" }, nm).style.background = s.color;
+    nm.appendChild(document.createTextNode(s.short || s.name));
+    h("div", { className: "val", textContent: s.fmt(b) + (s.unit === "%" ? "%" : "") }, tile);
+    if (s.unit !== "%") h("div", { className: "unit", textContent: s.unit }, tile);
+    if (s.unit === "%") {
+      const bp = Math.round((b - a) * 100);
+      h("div", { className: "chg " + (bp >= 0 ? "up" : "down"), textContent: (bp >= 0 ? "▲ +" : "▼ ") + bp + " 基点" }, tile);
+    } else {
+      const r = b / a - 1;
+      h("div", { className: "chg " + (r >= 0 ? "up" : "down"), textContent: (r >= 0 ? "▲ " : "▼ ") + pct(r) }, tile);
+    }
+  }
+}
+
+function renderMain(i0, i1, xs) {
+  const svg = $("chart");
+  svg.textContent = "";
+  const W = svg.clientWidth || 360;
+  const H = Math.round(Math.max(260, Math.min(380, W * 0.8)));
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  const M = { t: 10, r: 10, b: 24, l: 36 }, iw = W - M.l - M.r, ih = H - M.t - M.b;
+  const ser = indexed(i0, i1);
+  const isLog = state.scale === "log";
+  let lo = Infinity, hi = -Infinity;
+  for (const s of ser) for (const v of s.idx) if (v != null && (!isLog || v > 0)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  lo = Math.min(lo, 100); hi = Math.max(hi, 100);
+  if (isLog) { lo /= 1.06; hi *= 1.06; } else { const pad = (hi - lo) * 0.05; lo = Math.max(0, lo - pad); hi += pad; }
+  const t0 = xs[0].getTime(), t1 = xs[xs.length - 1].getTime();
+  const X = d => M.l + (d.getTime() - t0) / (t1 - t0) * iw;
+  const Y = isLog
+    ? v => M.t + (1 - (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * ih
+    : v => M.t + (1 - (v - lo) / (hi - lo)) * ih;
+
+  yGrid(svg, isLog ? logTicks(lo, hi).filter((v, i, a) => a.length <= 6 || [1, 2, 5].includes(+String(v)[0])) : fewer(linTicks(lo, hi)),
+    Y, M.l, M.l + iw, v => v >= 1000 ? v.toLocaleString("en-US") : String(+v.toFixed(1)));
+  el("line", { x1: M.l, x2: M.l + iw, y1: Y(100), y2: Y(100), stroke: "var(--axis)", "stroke-width": 1, "stroke-dasharray": "4 4" }, svg);
+  el("line", { x1: M.l, x2: M.l + iw, y1: M.t + ih, y2: M.t + ih, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+  xAxis(svg, xs, X, H - 6, iw);
+
+  for (const s of ser) {
+    let d = "", pen = false;
+    s.idx.forEach((v, i) => {
+      if (v == null || (isLog && v <= 0)) { pen = false; return; }
+      d += (pen ? "L" : "M") + X(xs[i]).toFixed(1) + "," + Y(v).toFixed(1);
+      pen = true;
+    });
+    el("path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  }
+
+  const cross = el("line", { y1: M.t, y2: M.t + ih, stroke: "var(--text-muted)", "stroke-width": 1 }, svg);
+  const dots = ser.map(s => el("circle", { r: 4, fill: s.color, stroke: "var(--surface-1)", "stroke-width": 2 }, svg));
+  const select = k => {
+    const x = X(xs[k]);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x);
+    ser.forEach((s, j) => {
+      const v = s.idx[k], ok = v != null && (!isLog || v > 0);
+      dots[j].setAttribute("visibility", ok ? "visible" : "hidden");
+      if (ok) { dots[j].setAttribute("cx", x); dots[j].setAttribute("cy", Y(v)); }
+    });
+    readout($("ro1"), fmtDate(xs[k]) + (k === xs.length - 1 ? "（最新）" : ""), ser.map(s => {
+      const raw = DATA[s.key][i0 + k], v = s.idx[k];
+      return { color: s.color, value: raw == null ? "—" : s.fmt(raw) + (s.unit === "%" ? "%" : ""), name: s.short || s.name,
+        extra: v == null ? "" : `${v.toFixed(0)}（${pct(v / 100 - 1)}）` };
+    }));
+  };
+  select(xs.length - 1);
+  bindScrub(svg, W, M.l, iw, xs, select, xs.length - 1);
+}
+
+// 共用时间轴的分面图：标题与图例在每幅上方，图例放不下自动换行
+function renderPanels(svgId, roId, SPEC, i0, i1, xs, foot) {
+  const val = (l, i) => l.f ? l.f(i, i0) : DATA[l.key][i];
+  const svg = $(svgId);
+  svg.textContent = "";
+  const W = svg.clientWidth || 360;
+  const M = { l: 36, r: 10 }, iw = W - M.l - M.r, PH = 104;
+  const t0 = xs[0].getTime(), t1 = xs[xs.length - 1].getTime();
+  const X = d => M.l + (d.getTime() - t0) / (t1 - t0) * iw;
+  const bands = el("g", {}, svg);
+  let y = 0;
+  const panels = SPEC.map(p => {
+    y += 14;
+    el("text", { x: 0, y, class: "panel-title" }, svg).textContent = p.short || p.title;
+    if (p.lines.length > 1) {
+      y += 17;
+      let lx = 0;
+      for (const l of p.lines) {
+        const kt = el("text", { class: "panel-key" }, svg);
+        kt.textContent = l.name;
+        const kw = kt.getComputedTextLength();
+        if (lx > 0 && lx + 20 + kw > W) { lx = 0; y += 15; }
+        el("line", { x1: lx, x2: lx + 14, y1: y - 4, y2: y - 4, stroke: l.color, "stroke-width": 2, "stroke-dasharray": l.dash || "none" }, svg);
+        kt.setAttribute("x", lx + 18); kt.setAttribute("y", y);
+        lx += 18 + kw + 14;
+      }
+    }
+    const y0 = y + 10;
+    y = y0 + PH + 12;
+    let lo = Infinity, hi = -Infinity;
+    for (const l of p.lines) for (let i = i0; i <= i1; i++) { const v = val(l, i); if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+    if (p.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+    const Y = v => y0 + (1 - (v - lo) / (hi - lo)) * PH;
+    yGrid(svg, fewer(linTicks(lo, hi)), Y, M.l, M.l + iw, v => String(+v.toFixed(2)));
+    if (p.zero && lo < 0) el("line", { x1: M.l, x2: M.l + iw, y1: Y(0), y2: Y(0), stroke: "var(--axis)", "stroke-width": 1 }, svg);
+    for (const l of p.lines) {
+      let d = "";
+      for (let i = i0; i <= i1; i++) { const v = val(l, i); if (v != null) d += (d ? "L" : "M") + X(dates[i]).toFixed(1) + "," + Y(v).toFixed(1); }
+      el("path", { d, fill: "none", stroke: l.color, "stroke-width": l.w || (l.dash ? 1.5 : 2), "stroke-dasharray": l.dash || "none", "stroke-linejoin": "round" }, svg);
+    }
+    return { p, Y, y0 };
+  });
+  const bottom = y - 12, H = bottom + 22;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  // QE / QT 阴影：每幅各画一段，名称只标在第一幅里
+  panels.forEach(({ y0 }, j) => {
+    let labelEnd = -Infinity; // 上一个标签的右端，避免标签重叠
+    for (const [n, a, b] of EPISODES) {
+      if (b < xs[0] || a > xs[xs.length - 1]) continue;
+      const xa = X(a < xs[0] ? xs[0] : a), xb = X(b > xs[xs.length - 1] ? xs[xs.length - 1] : b);
+      el("rect", { x: xa, y: y0, width: Math.max(0, xb - xa), height: PH, fill: "var(--wash)" }, bands);
+      if (j === 0 && xb - xa > 26 && xa > labelEnd + 4) {
+        const lt = el("text", { x: xa + 3, y: y0 + 10, class: "band-label" }, bands);
+        lt.textContent = n;
+        labelEnd = xa + 3 + lt.getComputedTextLength();
+      }
+    }
+  });
+  el("line", { x1: M.l, x2: M.l + iw, y1: bottom, y2: bottom, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+  xAxis(svg, xs, X, H - 6, iw);
+
+  const top0 = panels[0].y0;
+  const cross = el("line", { y1: top0, y2: bottom, stroke: "var(--text-muted)", "stroke-width": 1 }, svg);
+  const dots = panels.flatMap(({ p }) => p.lines.map(l => el("circle", { r: 3.5, fill: l.color, stroke: "var(--surface-1)", "stroke-width": 2 }, svg)));
+  const select = k => {
+    const i = i0 + k, x = X(xs[k]);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x);
+    const rows = [];
+    let di = 0;
+    for (const { p, Y } of panels) for (const l of p.lines) {
+      const v = val(l, i), dot = dots[di++];
+      dot.setAttribute("visibility", v == null ? "hidden" : "visible");
+      if (v != null) { dot.setAttribute("cx", x); dot.setAttribute("cy", Y(v)); }
+      rows.push({ color: l.color, value: v == null ? "—" : l.fmt(v), name: l.name });
+    }
+    readout($(roId), fmtDate(xs[k]) + (k === xs.length - 1 ? "（最新）" : ""), rows, foot(i));
+  };
+  select(xs.length - 1);
+  bindScrub(svg, W, M.l, iw, xs, select, xs.length - 1);
+}
+
+function renderLag(i0, i1) {
+  const svg = $("lag");
+  svg.textContent = "";
+  const W = svg.clientWidth || 360, H = 220;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  const M = { t: 14, r: 4, b: 40, l: 36 }, iw = W - M.l - M.r, ih = H - M.t - M.b;
+  const { rows, n } = lagRows(i0, i1);
+  const ro = $("ro4"), reading = $("reading");
+  if (n < 40) {
+    el("text", { x: 0, y: 40, class: "panel-key" }, svg).textContent = "所选区间太短，相关系数不可靠，请选 3 年以上。";
+    ro.textContent = ""; reading.textContent = "";
+    svg.onpointerdown = svg.onkeydown = null;
+    return;
+  }
+  const thr = lagThreshold(n);
+  const ext = Math.max(0.3, Math.ceil(Math.max(thr, ...rows.map(r => Math.abs(r.r))) * 10 + 0.5) / 10);
+  const Y = v => M.t + (1 - (v + ext) / (2 * ext)) * ih;
+  const bw = iw / rows.length, X = j => M.l + j * bw;
+  const hl = el("rect", { y: M.t, height: ih, width: bw, fill: "var(--wash)" }, svg);
+  const g = el("g", { class: "tick" }, svg);
+  for (const v of linTicks(-ext, ext)) {
+    el("line", { x1: M.l, x2: M.l + iw, y1: Y(v), y2: Y(v), stroke: v === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1 }, g);
+    el("text", { x: M.l - 6, y: Y(v) + 4, "text-anchor": "end" }, g).textContent = (v > 0 ? "+" : "") + +v.toFixed(2);
+  }
+  for (const s of [thr, -thr]) el("line", { x1: M.l, x2: M.l + iw, y1: Y(s), y2: Y(s), stroke: "var(--text-muted)", "stroke-width": 1, "stroke-dasharray": "4 4" }, svg);
+  rows.forEach((r, j) => {
+    el("rect", { x: X(j) + 2, y: Y(Math.max(0, r.r)), width: Math.max(1, bw - 4), height: Math.max(1, Math.abs(Y(r.r) - Y(0))), rx: 2,
+      fill: "var(--s-real)", "fill-opacity": Math.abs(r.r) >= thr ? 1 : 0.35 }, svg);
+    if (r.k % 4 === 0) el("text", { x: j === 0 ? X(j) : j === rows.length - 1 ? X(j) + bw : X(j) + bw / 2, y: H - 22,
+      "text-anchor": j === 0 ? "start" : j === rows.length - 1 ? "end" : "middle", class: "band-label" }, svg)
+      .textContent = r.k === 0 ? "0" : `${r.k > 0 ? "+" : "−"}${Math.abs(r.k) * 15}天`;
+  });
+  el("text", { x: M.l, y: H - 4, class: "panel-key" }, svg).textContent = "← 实际利率领先";
+  el("text", { x: M.l + iw, y: H - 4, "text-anchor": "end", class: "panel-key" }, svg).textContent = "流动性领先 →";
+  const [top, bot] = lagExtremes(rows);
+  for (const r of [top, bot].filter(r => Math.abs(r.r) >= 0.1)) {
+    const j = rows.indexOf(r);
+    el("text", { x: X(j) + bw / 2, y: r.r >= 0 ? Y(r.r) - 5 : Y(r.r) + 13, "text-anchor": "middle", fill: "var(--text-primary)", "font-size": 11, "font-weight": 600 }, svg)
+      .textContent = (r.r > 0 ? "+" : "") + r.r.toFixed(2);
+  }
+  let cur = rows.indexOf(Math.abs(top.r) >= Math.abs(bot.r) ? top : bot);
+  const select = j => {
+    cur = j;
+    const r = rows[j];
+    hl.setAttribute("x", X(j));
+    readout(ro, lagText(r.k), [{ color: "var(--s-real)", value: (r.r > 0 ? "+" : "") + r.r.toFixed(2), name: `相关系数（样本 ${r.n}）`, extra: `门槛 ±${thr.toFixed(2)}` }],
+      Math.abs(r.r) >= thr ? lagMeaning(r.k, r.r) : "未超过粗略显著门槛");
+  };
+  const pick = e => {
+    const rc = svg.getBoundingClientRect();
+    select(Math.max(0, Math.min(rows.length - 1, Math.floor(((e.clientX - rc.left) * W / rc.width - M.l) / bw))));
+  };
+  svg.onpointerdown = pick;
+  svg.onpointermove = pick;
+  svg.onkeydown = e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    select(Math.max(0, Math.min(rows.length - 1, cur + (e.key === "ArrowRight" ? 1 : -1))));
+  };
+  select(cur);
+  reading.textContent = lagReading(rows, thr);
+}
+
+function seg(id, items, get, set) {
+  const box = $(id);
+  for (const [label, v] of items) {
+    const b = h("button", { type: "button", textContent: label }, box);
+    b.setAttribute("aria-pressed", String(get() === v));
+    b.onclick = () => { set(v); [...box.children].forEach(c => c.setAttribute("aria-pressed", String(c === b))); render(); };
+  }
+}
+
+seg("range", RANGES, () => state.years, v => state.years = v);
+seg("scale", SCALES, () => state.scale, v => state.scale = v);
+renderNote();
+$("note").appendChild(document.createTextNode(
+  `数据截至：黄金 ${DATA.asof.gold}，原油 ${DATA.asof.oil}，美债 ${DATA.asof.y10}，美元指数 ${DATA.asof.dxy}，净流动性 ${DATA.asof.netliq}。`));
+renderTable();
+render();
+// 只在宽度变化时重绘（iOS 滚动时地址栏伸缩会触发 resize，但宽度不变）
+let lastW = innerWidth, rz;
+addEventListener("resize", () => { if (innerWidth === lastW) return; lastW = innerWidth; clearTimeout(rz); rz = setTimeout(render, 150); });
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@
 
 <!-- /AUTO:updated -->
 
-配套页面：<https://ysffor.github.io/market_analysis/>（源文件 `docs/index.html`，由更新脚本生成）。本文和页面由同一套数据和脚本生成，更新方法见[第 8 节](#8-更新与维护)。
+配套页面：电脑版 <https://ysffor.github.io/market_analysis/>，手机版 <https://ysffor.github.io/market_analysis/mobile.html>（源文件 `docs/index.html`、`docs/mobile.html`，由更新脚本生成）。本文和页面由同一套数据和脚本生成，更新方法见[第 8 节](#8-更新与维护)。
 
 ## 1. 问题与结论摘要
 
@@ -225,7 +225,7 @@ bash tools/update.sh --no-fetch  # 不下载，用 raw/ 里已有的数据
 
 1. `fetch.sh` 下载 FRED 和 Yahoo 数据到 `raw/`。
 2. `sample.py` 按 15 天采样，写入 `build/data.json`。
-3. 把数据嵌入 `template.html`，生成 `docs/index.html`。
+3. 把 `common.js` 和数据内联进两个模板，生成 `docs/index.html`（电脑版）和 `docs/mobile.html`（手机版）。
 4. `report.py` 重算本文所有 AUTO 区块里的数字，并重新跑[结论复核](#83-结论复核)。
 
 依赖：bash、curl、Python 3（需要 numpy，见 `requirements.txt`）。Windows 上用 Git Bash 运行。
@@ -234,7 +234,7 @@ bash tools/update.sh --no-fetch  # 不下载，用 raw/ 里已有的数据
 
 - **AUTO 区块里的内容不要手改**，下次运行会被覆盖。要改表格的结构或增加事件，改 `tools/report.py`（事件列表是文件开头的 `EPISODES`）。
 - **正文结论是手写的**，只在下面两种情况下修改：结论复核里出现 ✗；或者页面、分析方法有变化。每次修改都要在[变更记录](#9-变更记录)里写一条。
-- **页面有变化时**（新增图表、改口径、改 QE/QT 时期），同步更新第 2、3 节和对应的发现。
+- **页面有变化时**（新增图表、改口径、改 QE/QT 时期），同步更新第 2、3 节和对应的发现。新增或修改图表时，电脑版和手机版都要改；两边共用的配置和计算放在 `tools/common.js`。
 - **正文里尽量不写会随数据变化的具体数字**，需要引用时指向 AUTO 表格。历史事件的数字（比如 2014-15 年的油价跌幅）不会再变，可以写进正文。
 
 ### 8.3 结论复核
@@ -267,16 +267,19 @@ bash tools/update.sh --no-fetch  # 不下载，用 raw/ 里已有的数据
 | `tools/update.sh` | 一键更新 |
 | `tools/fetch.sh` | 下载原始数据 |
 | `tools/sample.py` | 15 天采样，输出页面数据 |
-| `tools/template.html` | 页面模板（数据位置是 `__DATA__`） |
+| `tools/template.html` | 电脑版页面模板（数据位置 `__DATA__`，共用代码位置 `/*__COMMON__*/`） |
+| `tools/template_mobile.html` | 手机版页面模板（同上） |
+| `tools/common.js` | 两个页面共用：序列与图表配置、QE/QT 时期、指数化、领先滞后计算、数据表和页脚 |
 | `tools/report.py` | 计算本文所有数字、结论复核、事件列表 |
 | `raw/` | 下载的原始数据（只放下载文件，不进 git） |
 | `build/data.json` | 采样后的数据（不进 git） |
-| `docs/index.html` | 生成的页面，通过 GitHub Pages 公开发布 |
+| `docs/index.html`、`docs/mobile.html` | 生成的电脑版、手机版页面，通过 GitHub Pages 公开发布 |
 
 ## 9. 变更记录
 
 | 日期 | 变更 |
 |---|---|
+| 2026-10-23 | 新增手机版页面 `docs/mobile.html`（读数固定在图上方，点按或拖动选点）；两个页面的共用逻辑抽到 `tools/common.js`；电脑版在窄屏上提示切换到手机版。 |
 | 2026-10-23 | 公开发布页面：`docs/index.html` 纳入版本库，通过 GitHub Pages 发布；页面底部加上分析文档和仓库的链接。 |
 | 2026-10-23 | 整理为独立仓库：页面生成到 `docs/index.html`，本文移到 `docs/`；原始数据、中间数据和生成的页面默认不进 git。 |
 | 2026-10-23 | 建立文档。页面包含：三者指数化对比图；价格层 vs 数量层分面图；实际利率与净流动性拆解图；领先滞后相关图。文档包含发现 1–3、判断流程、结论复核。 |

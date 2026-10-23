@@ -5,7 +5,6 @@
 set -euo pipefail
 export PYTHONIOENCODING=utf-8
 cd "$(dirname "$0")/.."
-PAGE="docs/index.html"
 DOC="docs/ANALYSIS.md"
 
 # 找一个装了 numpy 的 Python；可用环境变量 PYTHON 指定 | pick a Python with numpy, or set $PYTHON
@@ -19,12 +18,17 @@ export PYTHON
 
 [ "${1:-}" = "--no-fetch" ] || bash tools/fetch.sh
 "$PYTHON" -I tools/sample.py raw > build/data.json
-"$PYTHON" -I - tools/template.html build/data.json "$PAGE" <<'PY'
+# 两个页面模板共用 tools/common.js，构建时内联，生成的页面仍是单个自包含文件
+"$PYTHON" -I - tools/common.js build/data.json docs tools/template.html=index.html tools/template_mobile.html=mobile.html <<'PY'
 import sys
-tpl, data, out = sys.argv[1:4]
-t = open(tpl, encoding="utf-8").read()
-assert t.count("__DATA__") == 1
-open(out, "w", encoding="utf-8", newline="\n").write(t.replace("__DATA__", open(data).read()))
+common, data, outdir = sys.argv[1:4]
+c, d = open(common, encoding="utf-8").read(), open(data).read()
+assert "__DATA__" not in c
+for pair in sys.argv[4:]:
+    tpl, name = pair.split("=")
+    t = open(tpl, encoding="utf-8").read()
+    assert t.count("__DATA__") == 1 and t.count("/*__COMMON__*/") == 1, tpl
+    open(f"{outdir}/{name}", "w", encoding="utf-8", newline="\n").write(t.replace("/*__COMMON__*/", c, 1).replace("__DATA__", d, 1))
+    print(f"页面已生成：{outdir}/{name}")
 PY
-echo "页面已生成：$PAGE"
 "$PYTHON" -I tools/report.py raw build/data.json "$DOC"
