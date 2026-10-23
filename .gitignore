@@ -1,0 +1,11 @@
+# 原始数据和中间数据：由 tools/fetch.sh、tools/sample.py 在本地生成
+raw/*
+!raw/.gitkeep
+build/*
+!build/.gitkeep
+
+# 本地截图、测试副本等
+*.png
+test.html
+__pycache__/
+.DS_Store
