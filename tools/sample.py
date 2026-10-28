@@ -47,15 +47,19 @@ res["rrp"] = [round((r or 0) / 1e3, 5) for r in res["rrp"]]  # 余额可能只�
 # Verification section: CSI 300 TR vs replicated secondary-bond-fund index, weekly since 2004-12-31, both rebased to 1000
 csi = json.loads(open(f"{src}/H00300.json", "rb").read().decode("utf-8"))["data"]
 eq = {f"{x['tradeDate'][:4]}-{x['tradeDate'][4:6]}-{x['tradeDate'][6:]}": x["close"] for x in csi if x["close"]}
-bf = json.load(open(sys.argv[2]))["level"]
-bk = sorted(bf)
+bfj = json.load(open(sys.argv[2]))
+bk = sorted(bfj["level"])
 days = [d for d in sorted(eq) if "2004-12-31" <= d <= today.isoformat()]
-def bf_at(d):
+def bf_at(d, key="level"):
     i = bisect.bisect_right(bk, d) - 1
-    return bf[bk[i]]
+    return bfj[key][bk[i]]
 wk = lambda d: datetime.date.fromisoformat(d).isocalendar()[:2]
 vd = [d for i, d in enumerate(days) if i == len(days) - 1 or wk(d) != wk(days[i + 1])]
-e0, b0 = eq[days[0]], bf_at(days[0])
-res["verify"] = {"d": vd, "eq": [round(eq[d] / e0 * 1000, 1) for d in vd], "bf": [round(bf_at(d) / b0 * 1000, 1) for d in vd]}
+e0 = eq[days[0]]
+# bf = 未校正的复刻指数；bfA/bfB/bfC = 按 885007 锚点校正后的三种情景（见 replica.py）
+res["verify"] = {"d": vd, "eq": [round(eq[d] / e0 * 1000, 1) for d in vd]}
+for out_key, key in (("bf", "level"), ("bfA", "calA"), ("bfB", "calB"), ("bfC", "calC")):
+    b0 = bf_at(days[0], key)
+    res["verify"][out_key] = [round(bf_at(d, key) / b0 * 1000, 1) for d in vd]
 res["asof"]["verify"] = min(days[-1], bk[-1])
 json.dump(res, sys.stdout, separators=(",", ":"))

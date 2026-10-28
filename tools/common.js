@@ -173,18 +173,22 @@ function renderNote() {
 // ======== 专题验证（与上面的美元流动性分析相互独立，不受顶部区间切换影响）========
 // 验证 1：沪深300全收益跌破二级债基指数，就是底部？数据按周，自 2004-12-31 起；完整验证（日度数据）见 docs/VERIFY.md
 const VERIFY_DOC = "https://github.com/ysffor/market_analysis/blob/main/docs/VERIFY.md";
-const VERIFY_VERDICT = "结论：按字面不成立——以 2004-12-31 为基准，2006 年年中站稳之后沪深300全收益再也没有跌破二级债基；" +
-  "但历次大底时两者的比值都处在历史低位。换基准日后出现的跌破往往偏早，之后平均还要再跌一成以上。";
+const VERIFY_VERDICT = "结论（2026-10-28 更正）：大体成立，但要理解为\"接近这条线\"。按 885007 校正后，2008 年以来的大底都出现在比值约 0.9–1.1、" +
+  "即两条线交汇的附近；是否真正跌破取决于 885007 早年的走势：情景 A 下 2008–2014 年几次跌破都紧挨着底部，但 2015 年以后的大底都停在线的上方。" +
+  "最初发布的\"不成立\"是因为复刻的二级债基指数早年涨得太少，已更正。";
 const VERIFY_BASES = [["2004-12-31", "2004-12-31"], ["2010-12-31", "2010-12-31"], ["2014-12-31", "2014-12-31"], ["2018-12-31", "2018-12-31"]];
-const VERIFY_BOTTOMS = ["2008-11-04", "2012-12-03", "2014-03-20", "2016-01-28", "2019-01-03", "2020-03-19", "2022-10-31", "2024-02-02"];
-const verifyState = { base: "2004-12-31" };
+// 二级债基口径：按 885007 锚点校正的三种情景（差距形成的年份不同）和未校正的复刻，见 docs/VERIFY.md
+const VERIFY_SCENARIOS = [["情景 A", "bfA"], ["情景 B", "bfB"], ["情景 C", "bfC"], ["未校正", "bf"]];
+const VERIFY_SCEN_NAME = { bfA: "按 885007 校正·情景 A", bfB: "按 885007 校正·情景 B", bfC: "按 885007 校正·情景 C", bf: "未校正的复刻" };
+const VERIFY_BOTTOMS = ["2008-11-04", "2012-12-03", "2014-03-20", "2016-01-28", "2019-01-03", "2020-03-19", "2022-10-31", "2024-02-02", "2024-09-13"];
+const verifyState = { base: "2004-12-31", scen: "bfA" };
 
 // 比值 = (沪深300全收益 ÷ 基准日的值) ÷ (二级债基 ÷ 基准日的值)。
-// 跌破：比值在 1 以上停留 12 周以上后第一次跌到 1 以下；之后 156 周（约 3 年）内的最低点用来看"还要再跌多少"
+// 跌破：比值在 1 以上停留 12 周以上后第一次跌到 1 以下（实时信号日）；之后 156 周（约 3 年）内的最低点用来看"还要再跌多少"
 function verifyCalc(base) {
-  const V = DATA.verify, b0 = Math.max(0, V.d.findIndex(s => s >= base));
+  const V = DATA.verify, B = V[verifyState.scen], b0 = Math.max(0, V.d.findIndex(s => s >= base));
   const d = V.d.slice(b0), xs = d.map(s => new Date(s + "T00:00:00"));
-  const eq = V.eq.slice(b0).map(v => v / V.eq[b0] * 1000), bf = V.bf.slice(b0).map(v => v / V.bf[b0] * 1000);
+  const eq = V.eq.slice(b0).map(v => v / V.eq[b0] * 1000), bf = B.slice(b0).map(v => v / B[b0] * 1000);
   const R = eq.map((v, i) => v / bf[i]);
   const crosses = [];
   let run = 0;
@@ -200,7 +204,7 @@ function verifyCalc(base) {
   return { d, xs, eq, bf, R, crosses };
 }
 function verifySummary(c, base) {
-  const head = `以 ${base} 为基准（两者都设为 1000）：`;
+  const head = `以 ${base} 为基准（两者都设为 1000），二级债基用${VERIFY_SCEN_NAME[verifyState.scen]}：`;
   if (!c.crosses.length) {
     // 站稳：比值第一次在 1 以上连续停留 12 周；起点之后先低于 1 的那一段不算跌破
     let run = 0, s = -1;
@@ -211,7 +215,7 @@ function verifySummary(c, base) {
     return head + pre + "此后没有发生过跌破。" + (s >= 0 ? `站稳后比值最低是 ${c.R[m].toFixed(2)}（${c.d[m]}）。` : "") + `最新比值 ${c.R.at(-1).toFixed(2)}。`;
   }
   return head + `共跌破 ${c.crosses.length} 次：` + c.crosses.map(x =>
-    `${c.d[x.i].slice(0, 7)}（之后 3 年内再跌 ${Math.abs(x.dd * 100).toFixed(0)}%，${x.weeks} 周后见最低点）`).join("；") +
+    `${c.d[x.i].slice(0, 7)}（${Math.abs(x.dd) < 0.005 ? "当周即为 3 年内最低点" : `之后 3 年内再跌 ${Math.abs(x.dd * 100).toFixed(0)}%，${x.weeks} 周后见最低点`}）`).join("；") +
     `。最新比值 ${c.R.at(-1).toFixed(2)}。页面按周数据计算，和文档里按日数据算的日期可能差几天。`;
 }
 
@@ -260,13 +264,18 @@ function renderVerify(narrow) {
     el("text", { x: M.l + iw + 6, y: Y1(c.eq.at(-1)) + 4, class: "panel-key" }, svg).textContent = Math.round(c.eq.at(-1));
     el("text", { x: M.l + iw + 6, y: Y1(c.bf.at(-1)) + 4, class: "panel-key" }, svg).textContent = Math.round(c.bf.at(-1));
   }
+  let lastLabel = -Infinity; // 相邻底部太近时只标前一个，避免标签重叠
   for (const b of VERIFY_BOTTOMS) {
     const i = c.d.findIndex(s => s >= b);
     if (i <= 0) continue;
     const y = Math.max(P2.t, Math.min(P2.t + P2.h, Y2(c.R[i])));
     el("circle", { cx: X(c.xs[i]), cy: y, r: 4, fill: "var(--surface-1)", stroke: "var(--text-primary)", "stroke-width": 1.5 }, svg);
-    if (!narrow) el("text", { x: X(c.xs[i]), y: y + 15, "text-anchor": "middle", class: "band-label" }, svg).textContent = b.slice(0, 7);
+    if (!narrow && X(c.xs[i]) - lastLabel > 48) {
+      el("text", { x: X(c.xs[i]), y: y + 15, "text-anchor": "middle", class: "band-label" }, svg).textContent = b.slice(0, 7);
+      lastLabel = X(c.xs[i]);
+    }
   }
+  $("v1-bf-legend").textContent = `二级债基指数（${VERIFY_SCEN_NAME[verifyState.scen]}）`;
   for (const x of c.crosses) {
     const cx = X(c.xs[x.i]), cy = Y2(1);
     el("path", { d: `M${cx - 5},${cy - 9}L${cx + 5},${cy - 9}L${cx},${cy - 1}Z`, fill: "var(--s-csi)" }, svg);
@@ -283,7 +292,7 @@ function renderVerify(narrow) {
     ro.textContent = "";
     h("div", { className: "d", textContent: c.d[k] + (k === c.d.length - 1 ? "（最新）" : "") }, ro);
     for (const [col, val, name] of [["var(--s-csi)", Math.round(c.eq[k]).toLocaleString("en-US"), "沪深300全收益"],
-      ["var(--text-secondary)", Math.round(c.bf[k]).toLocaleString("en-US"), "二级债基指数（复刻 885007）"],
+      ["var(--text-secondary)", Math.round(c.bf[k]).toLocaleString("en-US"), `二级债基（${VERIFY_SCEN_NAME[verifyState.scen]}）`],
       ["var(--text-primary)", c.R[k].toFixed(2), c.R[k] < 1 ? "比值（低于 1：处于跌破状态）" : "比值"]]) {
       const row = h("div", { className: "row" }, ro);
       h("i", {}, row).style.background = col;
@@ -312,10 +321,13 @@ function renderVerify(narrow) {
 function initVerify(narrow) {
   $("v1-verdict").textContent = VERIFY_VERDICT;
   $("v1-doc").href = VERIFY_DOC;
-  const box = $("v1-base");
-  for (const [label, v] of VERIFY_BASES) {
-    const b = h("button", { type: "button", textContent: label }, box);
-    b.setAttribute("aria-pressed", String(verifyState.base === v));
-    b.onclick = () => { verifyState.base = v; [...box.children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderVerify(narrow); };
+  const segs = [["v1-base", VERIFY_BASES, "base"], ["v1-scen", VERIFY_SCENARIOS, "scen"]];
+  for (const [id, items, field] of segs) {
+    const box = $(id);
+    for (const [label, v] of items) {
+      const b = h("button", { type: "button", textContent: label }, box);
+      b.setAttribute("aria-pressed", String(verifyState[field] === v));
+      b.onclick = () => { verifyState[field] = v; [...box.children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderVerify(narrow); };
+    }
   }
 }

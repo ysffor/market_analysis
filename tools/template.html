@@ -179,11 +179,12 @@
       <h3 class="vt">验证 1：沪深300全收益跌破二级债基指数，就是底部？</h3>
       <p class="verdict" id="v1-verdict"></p>
       <div class="vbar"><span class="seg-label">基准日（两者在这天都设为 1000）</span><span class="seg small" id="v1-base"></span></div>
+      <div class="vbar"><span class="seg-label">二级债基口径（默认情景 A；三种情景都按 885007 校正，见文档）</span><span class="seg small" id="v1-scen"></span></div>
       <div class="vlegend">
         <span><i style="background:var(--s-csi)"></i>沪深300全收益</span>
-        <span><i style="background:var(--text-secondary)"></i>二级债基指数（按万得 885007 规则复刻）</span>
+        <span><i style="background:var(--text-secondary)"></i><span id="v1-bf-legend">二级债基指数</span></span>
         <span><i style="background:var(--text-primary)"></i>比值</span>
-        <span>▼ 跌破点　○ 历次大底</span>
+        <span>▼ 跌破点（实时信号日）　○ 历次大底</span>
       </div>
       <div class="readout" id="v1-ro"></div>
       <svg id="v1" tabindex="0" role="img" aria-label="沪深300全收益与二级债基指数叠加图及两者比值"></svg>
