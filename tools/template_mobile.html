@@ -129,6 +129,12 @@
   .vt { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
   .verdict { font-size: 13px; color: var(--text-primary); background: var(--wash); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px; line-height: 1.6; }
   .vbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .v2sel { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+  .v2tbl { overflow-x: auto; margin-top: 10px; }
+  .v2tbl table { width: 100%; font-size: 13px; }
+  .v2tbl th, .v2tbl td { position: static; }
+  .v2tbl th, .v2tbl td { padding: 6px 5px; white-space: normal; }
+  .v2tbl td:not(:first-child) { white-space: nowrap; }
   .vlegend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .vlegend i { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 5px; }
   .vbar .seg { flex: 1; }
@@ -192,6 +198,22 @@
       <svg id="v1" tabindex="0" role="img" aria-label="沪深300全收益与二级债基指数叠加图及两者比值"></svg>
       <p class="reading" id="v1-sum"></p>
       <p class="reading"><a id="v1-doc">完整验证过程、数据说明与结论复核（VERIFY.md）</a></p>
+    </div>
+    <div class="card" id="verify2" style="margin-top:16px">
+      <h3 class="vt">验证 2：红利指数按 MA120 均线定投、止盈，有没有用？</h3>
+      <p class="verdict" id="v2-verdict"></p>
+      <div class="vbar"><span class="seg-label">指数</span><select id="v2-idx" class="v2sel" aria-label="选择红利指数"></select></div>
+      <div class="vbar"><span class="seg-label">MA120 指</span><div class="seg" id="v2-mode"></div></div>
+      <div class="vlegend">
+        <span><i style="background:var(--text-primary)"></i>价格指数</span>
+        <span><i style="background:var(--text-secondary)"></i>均线（虚线）</span>
+        <span><i style="background:var(--s-oil)"></i>偏离度</span>
+      </div>
+      <div class="readout" id="v2-ro"></div>
+      <svg id="v2" tabindex="0" role="img" aria-label="红利指数价格、均线与偏离度"></svg>
+      <div class="v2tbl"><table id="v2-table"></table></div>
+      <p class="reading" id="v2-sum"></p>
+      <p class="reading"><a id="v2-doc">完整验证过程、规则具体化与结论复核（VERIFY.md）</a></p>
     </div>
   </section>
 
@@ -287,6 +309,7 @@ function render() {
   });
   renderLag(i0, i1);
   renderVerify(true);
+  renderVerify2(true);
 }
 
 function renderTiles(i0, i1) {
@@ -528,6 +551,7 @@ seg("range", RANGES, () => state.years, v => state.years = v);
 seg("scale", SCALES, () => state.scale, v => state.scale = v);
 renderNote();
 initVerify(true);
+initVerify2(true);
 $("note").appendChild(document.createTextNode(
   `数据截至：黄金 ${DATA.asof.gold}，原油 ${DATA.asof.oil}，美债 ${DATA.asof.y10}，美元指数 ${DATA.asof.dxy}，净流动性 ${DATA.asof.netliq}。`));
 renderTable();

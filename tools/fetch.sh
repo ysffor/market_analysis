@@ -26,3 +26,13 @@ curl -fsSL -m 120 --retry 2 -A "Mozilla/5.0" -o "$RAW/H00300.json.tmp" \
 grep -q '"tradeDate"' "$RAW/H00300.json.tmp" || { echo "中证 H00300: 返回内容没有行情数据" >&2; exit 1; }
 mv "$RAW/H00300.json.tmp" "$RAW/H00300.json"
 echo "CSI H00300 ok"
+
+# 专题验证 2：红利指数（价格指数用来判断信号，全收益指数用来算收益）与中证货币基金指数（现金收益）
+# Verification 2: dividend indices (price for signals, total return for performance) and the CSI money-fund index
+for c in 000922 H00922 H30269 H20269 930955 H20955 000825 H00825 000824 H00824 000015 H00015 930914 H20914 H11025; do
+  curl -fsSL -m 120 --retry 2 -A "Mozilla/5.0" -o "$RAW/$c.json.tmp" \
+    "https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=$c&startDate=20040101&endDate=$(date +%Y%m%d)"
+  grep -q '"tradeDate"' "$RAW/$c.json.tmp" || { echo "中证 $c: 返回内容没有行情数据" >&2; exit 1; }
+  mv "$RAW/$c.json.tmp" "$RAW/$c.json"
+done
+echo "CSI dividend indices ok"

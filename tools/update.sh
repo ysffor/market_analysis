@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 一键更新：下载数据 → 复刻二级债基指数 → 采样 → 生成页面 → 回填分析文档和验证文档里的数字并复核结论
+# 一键更新：下载数据 → 复刻二级债基指数 → 验证 2 回测 → 采样 → 生成页面 → 回填分析文档和验证文档里的数字并复核结论
 # One-shot update: fetch → replicate bond-fund index → sample → build pages → refill ANALYSIS.md / VERIFY.md and re-check conclusions
 # 用法 | usage: tools/update.sh [--no-fetch] [--no-funds]
 #   --no-fetch  不下载任何数据，全部用 raw/ 里已有的
@@ -31,6 +31,7 @@ export PYTHON
 [ "$FUNDS" = 1 ] && "$PYTHON" -I tools/fetch_funds.py raw build
 [ -d raw/funds ] || { echo "raw/funds 里没有基金净值，请先不带 --no-funds 运行一次" >&2; exit 1; }
 "$PYTHON" -I tools/replica.py raw/funds build/bondfund.json
+"$PYTHON" -I tools/verify2.py raw "$VERIFY" build/verify2.json   # 验证 2：回测、回填 VERIFY.md、输出页面数据
 "$PYTHON" -I tools/sample.py raw build/bondfund.json > build/data.json
 # 两个页面模板共用 tools/common.js，构建时内联，生成的页面仍是单个自包含文件
 "$PYTHON" -I - tools/common.js build/data.json docs tools/template.html=index.html tools/template_mobile.html=mobile.html <<'PY'

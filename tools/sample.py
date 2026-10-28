@@ -1,7 +1,7 @@
 # 以 15 天为步长，从今天往回 20 年，取每个采样日当日或之前最近的一个交易日值，输出页面内嵌用的 JSON
 # Sample every 15 days back 20 years from today (as-of last observation), emit the JSON embedded in the page
 # 用法 | usage: python -I sample.py <raw 目录> <build/bondfund.json> [YYYY-MM-DD 截止日，默认今天] > data.json
-import csv, json, datetime, bisect, sys
+import csv, json, datetime, bisect, os, sys
 src = sys.argv[1]
 def fred(name):
     out = {}
@@ -62,4 +62,7 @@ for out_key, key in (("bf", "level"), ("bfA", "calA"), ("bfB", "calB"), ("bfC", 
     b0 = bf_at(days[0], key)
     res["verify"][out_key] = [round(bf_at(d, key) / b0 * 1000, 1) for d in vd]
 res["asof"]["verify"] = min(days[-1], bk[-1])
+
+# 专题验证 2：tools/verify2.py 预先算好的页面数据（与 bondfund.json 在同一目录）
+res["verify2"] = json.load(open(os.path.join(os.path.dirname(sys.argv[2]) or ".", "verify2.json"), encoding="utf-8"))
 json.dump(res, sys.stdout, separators=(",", ":"))

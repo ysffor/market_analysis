@@ -87,7 +87,7 @@
 | 2007–2026 | -0.15 | -0.40 | -0.23 | 19% | -0.43 | -0.53 | -0.58 |
 | 2007–2019 | -0.21 | -0.42 | -0.15 | 20% | -0.47 | -0.66 | -0.69 |
 | 2020–2021 | +0.07 | -0.62 | -0.47 | 39% | -0.15 | -0.80 | -0.78 |
-| 2022–2026 | +0.06 | -0.08 | -0.40 | 18% | -0.47 | +0.12 | -0.52 |
+| 2022–2026 | +0.06 | -0.08 | -0.40 | 18% | -0.48 | +0.12 | -0.52 |
 
 **约 1 年变化**
 
@@ -190,7 +190,7 @@
 
 | 指标 | 最新值 | 约一年前 | 数据截至 |
 |---|---|---|---|
-| 黄金 | 4,062 美元/盎司 | 3,996 美元/盎司 | 2026-10-28 |
+| 黄金 | 4,044 美元/盎司 | 3,996 美元/盎司 | 2026-10-28 |
 | WTI 原油 | 107.89 美元/桶 | 61.75 美元/桶 | 2026-10-20 |
 | 10Y 名义收益率 | 5.00 % | 4.11 % | 2026-10-26 |
 | 10Y 实际利率 | 2.66 % | 1.81 % | 2026-10-26 |
@@ -229,7 +229,7 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 1. `fetch.sh` 下载 FRED、Yahoo 和中证数据到 `raw/`；`fetch_funds.py` 下载二级债基净值，`replica.py` 复刻二级债基指数（这两步只用于专题验证）。
 2. `sample.py` 按 15 天采样（专题验证部分按周），写入 `build/data.json`。
 3. 把 `common.js` 和数据内联进两个模板，生成 `docs/index.html`（电脑版）和 `docs/mobile.html`（手机版）。
-4. `report.py` 重算本文所有 AUTO 区块里的数字，并重新跑[结论复核](#83-结论复核)；`verify_report.py` 对 VERIFY.md 做同样的事。
+4. `report.py` 重算本文所有 AUTO 区块里的数字，并重新跑[结论复核](#83-结论复核)；`verify_report.py`、`verify2.py` 对 VERIFY.md 中的验证 1、验证 2 做同样的事（`verify2.py` 在生成页面之前运行，同时输出页面数据）。
 
 依赖：bash、curl、Python 3（需要 numpy，见 `requirements.txt`）。Windows 上用 Git Bash 运行。
 
@@ -275,7 +275,8 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 | `tools/template_mobile.html` | 手机版页面模板（同上） |
 | `tools/common.js` | 两个页面共用：序列与图表配置、QE/QT 时期、指数化、领先滞后计算、数据表和页脚 |
 | `tools/report.py` | 计算本文所有数字、结论复核、事件列表 |
-| `tools/fetch_funds.py`、`tools/replica.py`、`tools/verify_report.py` | 专题验证：下载二级债基净值、复刻 885007、计算并回填 VERIFY.md |
+| `tools/fetch_funds.py`、`tools/replica.py`、`tools/verify_report.py` | 专题验证 1：下载二级债基净值、复刻 885007、计算并回填 VERIFY.md |
+| `tools/verify2.py` | 专题验证 2：回测红利指数均线策略、回填 VERIFY.md、输出页面数据 |
 | `raw/` | 下载的原始数据（只放下载文件，不进 git） |
 | `build/data.json` | 采样后的数据（不进 git） |
 | `docs/index.html`、`docs/mobile.html` | 生成的电脑版、手机版页面，通过 GitHub Pages 公开发布 |

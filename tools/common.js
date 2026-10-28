@@ -331,3 +331,129 @@ function initVerify(narrow) {
     }
   }
 }
+
+// ======== 验证 2：红利指数按 MA120 均线定投、止盈（数据由 tools/verify2.py 预先算好，按周抽样）========
+const VERIFY2_VERDICT = "结论：按字面执行明显跑输普通定投——原文没说卖出后什么时候买回，资金长期闲置在货币基金里。" +
+  "把 MA120 理解为 120 日均线时，补上买回规则也没有稳定优势；理解为 120 周均线并补上\"回到均线下方时一次买回\"，" +
+  "在 A 股红利指数上多数时期跑赢普通定投，但单边大涨时会大幅踏空（如 2014–15 年的 A 股、2024 年以后的港股红利）。";
+const VERIFY2_ANCHOR = "#验证-2红利指数按-ma120-均线定投止盈有没有用";
+const v2State = { idx: 0, mode: "weekly" };
+const v2Zone = x => x > 0.20 ? "偏离超过 +20%：大量卖出甚至清仓" : x > 0.10 ? "偏离超过 +10%：卖出一部分" :
+  x > 0 ? "高于均线：停止定投" : x < -0.20 ? "低于均线超过 20%：大量加仓" : "低于或持平均线：继续定投";
+
+function renderVerify2(narrow) {
+  const V = DATA.verify2, it = V.idx[v2State.idx], key = v2State.mode === "daily" ? "dd" : "dw";
+  const ix = V.d.map((_, i) => i).filter(i => it.p[i] != null && it[key][i] != null);
+  const d = ix.map(i => V.d[i]), xs = d.map(s => new Date(s + "T00:00:00"));
+  const P = ix.map(i => it.p[i]), D = ix.map(i => it[key][i]), MA = P.map((p, j) => p / (1 + D[j]));
+  const svg = $("v2"), ro = $("v2-ro");
+  svg.textContent = "";
+  const W = svg.clientWidth || 360;
+  const M = { l: narrow ? 40 : 48, r: narrow ? 10 : 110 }, iw = W - M.l - M.r;
+  const P1 = { t: 8, h: narrow ? 180 : 240 }, P2 = { t: (narrow ? 180 : 240) + 44, h: narrow ? 130 : 160 };
+  const H = P2.t + P2.h + 24;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  const t0 = xs[0].getTime(), t1 = xs.at(-1).getTime();
+  const X = t => M.l + (t.getTime() - t0) / (t1 - t0) * iw;
+  const all = [...P, ...MA], lo1 = Math.min(...all) / 1.05, hi1 = Math.max(...all) * 1.04;
+  const Y1 = v => P1.t + (1 - (Math.log(v) - Math.log(lo1)) / (Math.log(hi1) - Math.log(lo1))) * P1.h;
+  // 偏离度纵轴最多显示 −45% 到 +60%，让 ±10% / ±20% 操作线看得清；超出部分（如 2007、2015 年）裁掉并标注最高值
+  const Ds = [...D].sort((a, b) => a - b);
+  const lo2 = Math.min(-0.3, Math.max(Ds[0] * 1.05, -0.45)), hi2 = Math.max(0.3, Math.min(Ds.at(-1) * 1.05, 0.6));
+  const Y2 = v => P2.t + (1 - (v - lo2) / (hi2 - lo2)) * P2.h;
+  const g = el("g", { class: "tick" }, svg);
+  for (const v of logTicks(lo1, hi1).filter((v, i, a) => a.length <= 6 || [1, 2, 5].includes(+String(v)[0]))) {
+    el("line", { x1: M.l, x2: M.l + iw, y1: Y1(v), y2: Y1(v), stroke: "var(--grid)", "stroke-width": 1 }, g);
+    el("text", { x: M.l - 6, y: Y1(v) + 4, "text-anchor": "end" }, g).textContent = v >= 1000 ? v.toLocaleString("en-US") : v;
+  }
+  // 偏离度面板：0 线与 ±10% / ±20% 操作线；标签太近时只标一个
+  const REF = [[0.20, "+20% 大量卖出"], [0.10, "+10% 卖出一部分"], [0, "0 停投 / 定投"], [-0.20, "−20% 大量加仓"]];
+  for (const v of linTicks(lo2, hi2).filter((v, i, a) => a.length <= 6 || i % 2 === 0))
+    el("text", { x: M.l - 6, y: Y2(v) + 4, "text-anchor": "end" }, g).textContent = `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`;
+  let lastY = -Infinity;
+  for (const [v, lab] of REF) {
+    if (v < lo2 || v > hi2) continue;
+    el("line", { x1: M.l, x2: M.l + iw, y1: Y2(v), y2: Y2(v), stroke: v === 0 ? "var(--axis)" : "var(--text-muted)", "stroke-width": 1, "stroke-dasharray": v === 0 ? "none" : "4 4" }, svg);
+    if (!narrow && Y2(v) - lastY >= 12) { el("text", { x: M.l + iw + 6, y: Y2(v) + 4, class: "band-label" }, svg).textContent = lab; lastY = Y2(v); }
+  }
+  el("text", { x: M.l, y: P2.t - 12, class: "panel-title" }, svg).textContent = `偏离度 = 价格 ÷ ${V.modes[v2State.mode]} − 1`;
+  const span = (t1 - t0) / 3.156e10, every = [1, 2, 4, 5].find(s => iw / span * s >= 44) || 5;
+  for (let y = xs[0].getFullYear() + 1; y <= xs.at(-1).getFullYear(); y++)
+    if (y % every === 0) el("text", { x: X(new Date(y, 0, 1)), y: H - 6, "text-anchor": "middle" }, g).textContent = y;
+  const path = (a, Y) => a.map((v, j) => (j ? "L" : "M") + X(xs[j]).toFixed(1) + "," + Y(v).toFixed(1)).join("");
+  el("path", { d: path(MA, Y1), fill: "none", stroke: "var(--text-secondary)", "stroke-width": 1.5, "stroke-dasharray": "5 3" }, svg);
+  el("path", { d: path(P, Y1), fill: "none", stroke: "var(--text-primary)", "stroke-width": 2 }, svg);
+  const clip = el("clipPath", { id: "v2clip" }, el("defs", {}, svg));
+  el("rect", { x: 0, y: P2.t, width: W, height: P2.h }, clip);
+  el("path", { d: path(D, Y2), fill: "none", stroke: "var(--s-oil)", "stroke-width": 2, "clip-path": "url(#v2clip)" }, svg);
+  if (Ds.at(-1) > hi2) {
+    const k = D.indexOf(Ds.at(-1));
+    el("text", { x: X(xs[k]) + 6, y: P2.t + 10, class: "band-label" }, svg).textContent = `↑ ${d[k].slice(0, 7)} 最高 +${Math.round(Ds.at(-1) * 100)}%`;
+  }
+  const cross = el("line", { y1: P1.t, y2: P2.t + P2.h, stroke: "var(--text-muted)", "stroke-width": 1 }, svg);
+  const dots = ["var(--text-primary)", "var(--text-secondary)", "var(--s-oil)"].map(f => el("circle", { r: 3.5, fill: f, stroke: "var(--surface-1)", "stroke-width": 2 }, svg));
+  let cur = d.length - 1;
+  const select = k => {
+    cur = k;
+    const x = X(xs[k]);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x);
+    [[P[k], Y1], [MA[k], Y1], [D[k], Y2]].forEach(([v, Y], j) => { dots[j].setAttribute("cx", x); dots[j].setAttribute("cy", Y(v)); });
+    dots[2].setAttribute("visibility", D[k] <= hi2 && D[k] >= lo2 ? "visible" : "hidden");
+    ro.textContent = "";
+    h("div", { className: "d", textContent: d[k] + (k === d.length - 1 ? "（最新）" : "") + "　" + v2Zone(D[k]) }, ro);
+    for (const [col, val, name] of [["var(--text-primary)", P[k].toLocaleString("en-US", { maximumFractionDigits: 0 }), it.name + "（价格指数）"],
+      ["var(--text-secondary)", MA[k].toLocaleString("en-US", { maximumFractionDigits: 0 }), V.modes[v2State.mode]],
+      ["var(--s-oil)", `${D[k] > 0 ? "+" : ""}${(D[k] * 100).toFixed(1)}%`, "偏离度"]]) {
+      const row = h("div", { className: "row" }, ro);
+      h("i", {}, row).style.background = col;
+      h("b", { textContent: val }, row);
+      h("em", { textContent: name }, row);
+      h("small", {}, row);
+    }
+  };
+  const pick = e => {
+    const r = svg.getBoundingClientRect(), t = t0 + ((e.clientX - r.left) * W / r.width - M.l) / iw * (t1 - t0);
+    let k = 0;
+    xs.forEach((tt, j) => { if (Math.abs(tt - t) < Math.abs(xs[k] - t)) k = j; });
+    select(k);
+  };
+  svg.onpointerdown = pick;
+  svg.onpointermove = pick;
+  svg.onkeydown = e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    select(Math.max(0, Math.min(d.length - 1, cur + (e.key === "ArrowRight" ? 1 : -1))));
+  };
+  select(cur);
+  // 回测结果表（日度数据回测，见 VERIFY.md）
+  const res = it.res[v2State.mode], tb = $("v2-table");
+  tb.textContent = "";
+  const hr = h("tr", {}, h("thead", {}, tb));
+  for (const x of ["版本", "全期年化", "平均仓位", "5 年跑赢比例", "5 年中位差"]) h("th", { textContent: x }, hr);
+  const body = h("tbody", {}, tb);
+  for (const k of ["定投", ...V.variants]) {
+    const r = res[k], tr = h("tr", {}, body);
+    h("td", { textContent: k === "定投" ? "普通定投" : k }, tr);
+    h("td", { textContent: (r[0] * 100).toFixed(2) + "%" }, tr);
+    h("td", { textContent: Math.round(r[1] * 100) + "%" }, tr);
+    h("td", { textContent: k === "定投" ? "—" : r[2].toFixed(0) + "%" }, tr);
+    h("td", { textContent: k === "定投" ? "—" : `${r[3] >= 0 ? "+" : "−"}${Math.abs(r[3] * 100).toFixed(2)}` }, tr);
+  }
+  $("v2-sum").textContent = `${it.name}，${V.modes[v2State.mode]}：回测自 ${res.start} 起，每月初投入 1 份资金，收益按全收益指数（含分红）计算，现金按货币基金收益计息，未计费用。` +
+    `"5 年跑赢比例"是每月一个起点、持续 5 年的滚动回测中跑赢普通定投的比例，"5 年中位差"是这些窗口里年化收益之差的中位数（百分点）。` +
+    `最新（${d.at(-1)}）偏离 ${D.at(-1) > 0 ? "+" : ""}${(D.at(-1) * 100).toFixed(1)}%，处于"${v2Zone(D.at(-1))}"区间。`;
+}
+function initVerify2(narrow) {
+  $("v2-verdict").textContent = VERIFY2_VERDICT;
+  $("v2-doc").href = VERIFY_DOC + VERIFY2_ANCHOR;
+  const sel = $("v2-idx");
+  DATA.verify2.idx.forEach((it, i) => h("option", { value: i, textContent: it.name }, sel));
+  sel.onchange = () => { v2State.idx = +sel.value; renderVerify2(narrow); };
+  const box = $("v2-mode");
+  for (const [v, label] of Object.entries(DATA.verify2.modes)) {
+    const b = h("button", { type: "button", textContent: label }, box);
+    b.setAttribute("aria-pressed", String(v2State.mode === v));
+    b.onclick = () => { v2State.mode = v; [...box.children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderVerify2(narrow); };
+  }
+}
