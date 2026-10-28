@@ -48,3 +48,5 @@ for pair in sys.argv[4:]:
 PY
 "$PYTHON" -I tools/report.py raw build/data.json "$DOC"
 "$PYTHON" -I tools/verify_report.py raw build/bondfund.json "$VERIFY"
+# 独立的专题验证报告页（VERIFY.md 转 HTML + 交互图表）
+"$PYTHON" -I tools/build_verify_report.py "$VERIFY" build/data.json tools/common.js tools/template_verify.html docs/verify/index.html

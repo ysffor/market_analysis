@@ -230,6 +230,7 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 2. `sample.py` 按 15 天采样（专题验证部分按周），写入 `build/data.json`。
 3. 把 `common.js` 和数据内联进两个模板，生成 `docs/index.html`（电脑版）和 `docs/mobile.html`（手机版）。
 4. `report.py` 重算本文所有 AUTO 区块里的数字，并重新跑[结论复核](#83-结论复核)；`verify_report.py`、`verify2.py` 对 VERIFY.md 中的验证 1、验证 2 做同样的事（`verify2.py` 在生成页面之前运行，同时输出页面数据）。
+5. `build_verify_report.py` 把更新后的 VERIFY.md 转成独立的专题验证报告页 `docs/verify/index.html`，并嵌入交互图表。
 
 依赖：bash、curl、Python 3（需要 numpy，见 `requirements.txt`）。Windows 上用 Git Bash 运行。
 
@@ -277,6 +278,7 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 | `tools/report.py` | 计算本文所有数字、结论复核、事件列表 |
 | `tools/fetch_funds.py`、`tools/replica.py`、`tools/verify_report.py` | 专题验证 1：下载二级债基净值、复刻 885007、计算并回填 VERIFY.md |
 | `tools/verify2.py` | 专题验证 2：回测红利指数均线策略、回填 VERIFY.md、输出页面数据 |
+| `tools/build_verify_report.py`、`tools/template_verify.html` | 把 VERIFY.md 转成独立的专题验证报告页 `docs/verify/index.html` |
 | `raw/` | 下载的原始数据（只放下载文件，不进 git） |
 | `build/data.json` | 采样后的数据（不进 git） |
 | `docs/index.html`、`docs/mobile.html` | 生成的电脑版、手机版页面，通过 GitHub Pages 公开发布 |

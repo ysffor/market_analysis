@@ -5,9 +5,10 @@
 - **分析**：观察过去 20 年黄金、原油、10 年期美债收益率的走势，以及它们和美元流动性的关系。
 - **专题验证**：用数据检验市场上流传的说法，和上面的分析相互独立。
 
-**在线查看：** 电脑版 <https://ysffor.github.io/market_analysis/> ｜ 手机版 <https://ysffor.github.io/market_analysis/mobile.html>
+**在线查看：** 电脑版 <https://ysffor.github.io/market_analysis/> ｜ 手机版 <https://ysffor.github.io/market_analysis/mobile.html> ｜ 专题验证报告 <https://ysffor.github.io/market_analysis/verify/>
 
 - **页面**：电脑版 `docs/index.html` 和手机版 `docs/mobile.html`。每个都是单个 HTML 文件，数据内嵌，打开不需要联网，也不依赖任何外部库。
+- **专题验证报告**（`docs/verify/index.html`）：把验证文档做成独立网页，正文中嵌入交互图表，电脑和手机共用。
 - **分析文档**（[docs/ANALYSIS.md](docs/ANALYSIS.md)）：分析思路、主要发现、判断流程和局限。
 - **验证文档**（[docs/VERIFY.md](docs/VERIFY.md)）：每条验证的说法、结论、方法与数据、结果和局限。
 
@@ -51,6 +52,7 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 │   ├── VERIFY.md        专题验证文档（AUTO 区块由脚本生成）
 │   ├── index.html       生成的电脑版页面（GitHub Pages 首页）
 │   ├── mobile.html      生成的手机版页面
+│   ├── verify/index.html  生成的专题验证报告页
 │   └── .nojekyll
 ├── tools/
 │   ├── update.sh        一键更新
@@ -60,10 +62,12 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 │   ├── sample.py        每 15 天采样，输出页面数据
 │   ├── template.html    电脑版页面模板
 │   ├── template_mobile.html  手机版页面模板
+│   ├── template_verify.html  专题验证报告页模板
 │   ├── common.js        两个页面共用的数据处理与分析逻辑（构建时内联）
 │   ├── report.py        计算分析文档里的数字、复核结论、维护事件列表
 │   ├── verify_report.py 验证 1：计算验证文档里的数字、复核结论
-│   └── verify2.py       验证 2：回测红利指数均线策略、回填验证文档、输出页面数据
+│   ├── verify2.py       验证 2：回测红利指数均线策略、回填验证文档、输出页面数据
+│   └── build_verify_report.py  把 VERIFY.md 转成专题验证报告页，并嵌入交互图表
 ├── raw/                 下载的原始数据（不进 git）
 └── build/               中间数据（不进 git）
 ```

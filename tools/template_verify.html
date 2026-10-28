@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>专题验证报告 · 美元流动性观察</title>
+<!--
+  专题验证报告页：由 tools/build_verify_report.py 把 docs/VERIFY.md 转成 HTML 填入正文位置，并在每条验证的结论之后插入交互图表。
+  图表的计算与绘图复用 tools/common.js（构建时内联），数据只内嵌验证部分。电脑与手机共用这一个页面。
+  Standalone verification report: VERIFY.md rendered to HTML with the interactive verification cards; shares tools/common.js.
+-->
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.05);
+    --s-oil: #2a78d6; --s-csi: #e34948; --link: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
+      --s-oil: #3987e5; --s-csi: #e66767; --link: #6da7ec;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-padding-top: 12px; }
+  body.viz-root {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 15px/1.7 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 20px max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left));
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  a { color: var(--link); }
+  .topnav { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .badge { font-size: 12px; font-weight: 600; border: 1px solid var(--text-primary); border-radius: 4px; padding: 1px 6px; }
+  /* 报告正文（由 Markdown 转换） */
+  .report h1 { font-size: 24px; margin: 4px 0 8px; }
+  .report h2 { font-size: 20px; margin: 40px 0 8px; padding-top: 16px; border-top: 2px solid var(--axis); }
+  .report h3 { font-size: 16px; margin: 24px 0 6px; }
+  .report h4 { font-size: 15px; margin: 16px 0 4px; }
+  .report p { margin: 8px 0; }
+  .report ul, .report ol { padding-left: 1.5em; margin: 6px 0; }
+  .report li { margin: 4px 0; }
+  .report blockquote { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--axis); background: var(--wash); border-radius: 0 6px 6px 0; color: var(--text-secondary); }
+  .report blockquote p { margin: 4px 0; }
+  .report code { font-family: ui-monospace, Consolas, monospace; font-size: 0.9em; background: var(--wash); padding: 1px 4px; border-radius: 4px; }
+  .report hr { border: 0; border-top: 1px solid var(--grid); margin: 24px 0; }
+  .tbl { overflow-x: auto; margin: 8px 0 12px; -webkit-overflow-scrolling: touch; }
+  .tbl table { border-collapse: collapse; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  .tbl th, .tbl td { border-bottom: 1px solid var(--grid); padding: 6px 10px; text-align: left; vertical-align: top; }
+  .tbl th { color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+  /* 交互图表卡片（与看板相同的结构，样式取自电脑版模板） */
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 16px 0; line-height: 1.45; }
+  .card-cap { font-size: 12px; color: var(--text-muted); margin: 0 0 6px; }
+  .vt { display: none; }
+  .verdict { display: none; }
+  .vbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .seg-label { color: var(--text-muted); font-size: 12px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-1); }
+  .seg button { font: inherit; font-size: 13px; color: var(--text-secondary); background: transparent; border: 0; padding: 5px 10px; min-height: 32px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { color: var(--text-primary); font-weight: 600; background: var(--wash); }
+  .v2sel { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+  .vlegend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .vlegend i { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 5px; }
+  .readout { font-size: 13px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+  .readout .d { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
+  .readout .row { display: grid; grid-template-columns: 14px auto auto 1fr; gap: 8px; align-items: baseline; }
+  .readout .row i { display: inline-block; width: 12px; height: 2px; border-radius: 1px; align-self: center; }
+  .readout .row b { font-weight: 600; }
+  .readout .row em { font-style: normal; color: var(--text-secondary); }
+  .card svg { width: 100%; display: block; outline: none; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .tick text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .panel-title { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
+  .panel-key { fill: var(--text-secondary); font-size: 12px; }
+  .band-label { fill: var(--text-muted); font-size: 11px; }
+  .reading { color: var(--text-secondary); font-size: 13px; margin: 8px 0 0; line-height: 1.6; }
+  .reading:has(> a[id$="-doc"]) { display: none; }
+  .v2tbl { overflow-x: auto; margin-top: 10px; }
+  .v2tbl table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .v2tbl th, .v2tbl td { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: right; }
+  .v2tbl th:first-child, .v2tbl td:first-child { text-align: left; }
+  .v2tbl th { color: var(--text-secondary); font-weight: 600; }
+  .foot { color: var(--text-muted); font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap">
+  <div class="topnav">
+    <span class="badge">专题验证</span>
+    <a href="../index.html">← 返回看板（电脑版）</a>
+    <a href="../mobile.html">看板手机版</a>
+    <a href="https://github.com/ysffor/market_analysis/blob/main/docs/VERIFY.md">在 GitHub 上查看原文</a>
+  </div>
+  <article class="report">
+__REPORT__
+  </article>
+  <p class="foot">本页由 tools/build_verify_report.py 根据 docs/VERIFY.md 自动生成，图表数据内嵌在页面中，打开不需要联网。仅用于学习研究，不构成投资建议。</p>
+</div>
+<script>
+const DATA = __DATA__;
+/*__COMMON__*/
+const NARROW = innerWidth < 640;
+initVerify(NARROW);
+initVerify2(NARROW);
+function renderAll() { renderVerify(NARROW); renderVerify2(NARROW); }
+renderAll();
+let lastW = innerWidth, rz;
+addEventListener("resize", () => { if (innerWidth === lastW) return; lastW = innerWidth; clearTimeout(rz); rz = setTimeout(renderAll, 150); });
+</script>
+</body>
+</html>
