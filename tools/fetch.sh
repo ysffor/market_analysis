@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 下载原始数据到 raw/（只放下载文件，不放脚本）：FRED 各序列 CSV + Yahoo 黄金期货日线
+# 下载原始数据到 raw/（只放下载文件，不放脚本）：FRED 各序列 CSV + Yahoo 黄金期货日线 + 中证沪深300全收益
 # Download raw data into raw/ (downloads only): FRED series CSVs + Yahoo gold futures daily bars
 set -euo pipefail
 RAW="$(cd "$(dirname "$0")/../raw" && pwd)"
@@ -18,3 +18,11 @@ curl -fsSL -m 120 --retry 2 -A "Mozilla/5.0" -o "$RAW/gold_yf.json.tmp" \
 grep -q '"timestamp"' "$RAW/gold_yf.json.tmp" || { echo "Yahoo GC=F: 返回内容没有行情数据" >&2; exit 1; }
 mv "$RAW/gold_yf.json.tmp" "$RAW/gold_yf.json"
 echo "Yahoo GC=F ok"
+
+# 专题验证用：沪深300全收益指数（中证 H00300），从基日 2004-12-31 起
+# For the verification section: CSI 300 Total Return index since its base date
+curl -fsSL -m 120 --retry 2 -A "Mozilla/5.0" -o "$RAW/H00300.json.tmp" \
+  "https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=H00300&startDate=20041231&endDate=$(date +%Y%m%d)"
+grep -q '"tradeDate"' "$RAW/H00300.json.tmp" || { echo "中证 H00300: 返回内容没有行情数据" >&2; exit 1; }
+mv "$RAW/H00300.json.tmp" "$RAW/H00300.json"
+echo "CSI H00300 ok"

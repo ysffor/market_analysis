@@ -169,3 +169,153 @@ function renderNote() {
   h("a", { href: "https://github.com/ysffor/market_analysis", textContent: "GitHub 仓库" }, $("note"));
   $("note").appendChild(document.createTextNode("。本页仅用于学习研究，不构成投资建议。"));
 }
+
+// ======== 专题验证（与上面的美元流动性分析相互独立，不受顶部区间切换影响）========
+// 验证 1：沪深300全收益跌破二级债基指数，就是底部？数据按周，自 2004-12-31 起；完整验证（日度数据）见 docs/VERIFY.md
+const VERIFY_DOC = "https://github.com/ysffor/market_analysis/blob/main/docs/VERIFY.md";
+const VERIFY_VERDICT = "结论：按字面不成立——以 2004-12-31 为基准，2006 年年中站稳之后沪深300全收益再也没有跌破二级债基；" +
+  "但历次大底时两者的比值都处在历史低位。换基准日后出现的跌破往往偏早，之后平均还要再跌一成以上。";
+const VERIFY_BASES = [["2004-12-31", "2004-12-31"], ["2010-12-31", "2010-12-31"], ["2014-12-31", "2014-12-31"], ["2018-12-31", "2018-12-31"]];
+const VERIFY_BOTTOMS = ["2008-11-04", "2012-12-03", "2014-03-20", "2016-01-28", "2019-01-03", "2020-03-19", "2022-10-31", "2024-02-02"];
+const verifyState = { base: "2004-12-31" };
+
+// 比值 = (沪深300全收益 ÷ 基准日的值) ÷ (二级债基 ÷ 基准日的值)。
+// 跌破：比值在 1 以上停留 12 周以上后第一次跌到 1 以下；之后 156 周（约 3 年）内的最低点用来看"还要再跌多少"
+function verifyCalc(base) {
+  const V = DATA.verify, b0 = Math.max(0, V.d.findIndex(s => s >= base));
+  const d = V.d.slice(b0), xs = d.map(s => new Date(s + "T00:00:00"));
+  const eq = V.eq.slice(b0).map(v => v / V.eq[b0] * 1000), bf = V.bf.slice(b0).map(v => v / V.bf[b0] * 1000);
+  const R = eq.map((v, i) => v / bf[i]);
+  const crosses = [];
+  let run = 0;
+  for (let i = 1; i < R.length; i++) {
+    if (R[i] >= 1) { run++; continue; }
+    if (R[i - 1] >= 1 && run >= 12) {
+      let lo = i;
+      for (let j = i; j < Math.min(R.length, i + 156); j++) if (eq[j] < eq[lo]) lo = j;
+      crosses.push({ i, lo, dd: eq[lo] / eq[i] - 1, weeks: lo - i });
+    }
+    run = 0;
+  }
+  return { d, xs, eq, bf, R, crosses };
+}
+function verifySummary(c, base) {
+  const head = `以 ${base} 为基准（两者都设为 1000）：`;
+  if (!c.crosses.length) {
+    // 站稳：比值第一次在 1 以上连续停留 12 周；起点之后先低于 1 的那一段不算跌破
+    let run = 0, s = -1;
+    for (let i = 0; i < c.R.length && s < 0; i++) { run = c.R[i] >= 1 ? run + 1 : 0; if (run >= 12) s = i; }
+    let m = s;
+    for (let i = Math.max(s, 0); i < c.R.length; i++) if (c.R[i] < c.R[m]) m = i;
+    const pre = s > 12 ? `起点之后比值先低于 1，${c.d[s].slice(0, 7)} 站稳 1 以上；` : "";
+    return head + pre + "此后没有发生过跌破。" + (s >= 0 ? `站稳后比值最低是 ${c.R[m].toFixed(2)}（${c.d[m]}）。` : "") + `最新比值 ${c.R.at(-1).toFixed(2)}。`;
+  }
+  return head + `共跌破 ${c.crosses.length} 次：` + c.crosses.map(x =>
+    `${c.d[x.i].slice(0, 7)}（之后 3 年内再跌 ${Math.abs(x.dd * 100).toFixed(0)}%，${x.weeks} 周后见最低点）`).join("；") +
+    `。最新比值 ${c.R.at(-1).toFixed(2)}。页面按周数据计算，和文档里按日数据算的日期可能差几天。`;
+}
+
+// 绘制：上幅两条线（对数刻度），下幅比值（1.0 为跌破线）；▼ 为跌破点，○ 为历次大底。narrow 为手机布局
+function renderVerify(narrow) {
+  const c = verifyCalc(verifyState.base);
+  const svg = $("v1"), ro = $("v1-ro");
+  svg.textContent = "";
+  const W = svg.clientWidth || 360;
+  const M = { l: narrow ? 36 : 48, r: narrow ? 10 : 56 }, iw = W - M.l - M.r;
+  const P1 = { t: 8, h: narrow ? 200 : 280 }, P2 = { t: (narrow ? 200 : 280) + 44, h: narrow ? 120 : 150 };
+  const H = P2.t + P2.h + 24;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  const t0 = c.xs[0].getTime(), t1 = c.xs.at(-1).getTime();
+  const X = d => M.l + (d.getTime() - t0) / (t1 - t0) * iw;
+  const all = [...c.eq, ...c.bf], lo1 = Math.min(...all) / 1.06, hi1 = Math.max(...all) * 1.05;
+  const Y1 = v => P1.t + (1 - (Math.log(v) - Math.log(lo1)) / (Math.log(hi1) - Math.log(lo1))) * P1.h;
+  const sorted = [...c.R].sort((a, b) => a - b), p95 = sorted[Math.floor(sorted.length * 0.95)];
+  const lo2 = Math.min(0.8, sorted[0] * 0.97), hi2 = Math.max(1.2, Math.min(sorted.at(-1) * 1.05, p95 * 1.2));
+  const Y2 = v => P2.t + (1 - (v - lo2) / (hi2 - lo2)) * P2.h;
+  const g = el("g", { class: "tick" }, svg);
+  for (const v of logTicks(lo1, hi1).filter((v, i, a) => a.length <= 6 || [1, 2, 5].includes(+String(v)[0]))) {
+    el("line", { x1: M.l, x2: M.l + iw, y1: Y1(v), y2: Y1(v), stroke: "var(--grid)", "stroke-width": 1 }, g);
+    el("text", { x: M.l - 6, y: Y1(v) + 4, "text-anchor": "end" }, g).textContent = v >= 1000 ? v.toLocaleString("en-US") : v;
+  }
+  for (const v of linTicks(lo2, hi2).filter((v, i, a) => a.length <= 5 || i % 2 === 0)) {
+    el("line", { x1: M.l, x2: M.l + iw, y1: Y2(v), y2: Y2(v), stroke: "var(--grid)", "stroke-width": 1 }, g);
+    el("text", { x: M.l - 6, y: Y2(v) + 4, "text-anchor": "end" }, g).textContent = v.toFixed(1);
+  }
+  el("line", { x1: M.l, x2: M.l + iw, y1: Y2(1), y2: Y2(1), stroke: "var(--text-muted)", "stroke-width": 1, "stroke-dasharray": "5 4" }, svg);
+  el("text", { x: M.l + iw, y: Y2(1) - 5, "text-anchor": "end", class: "band-label" }, svg).textContent = "1.0 跌破线";
+  el("text", { x: M.l, y: P2.t - 12, class: "panel-title" }, svg).textContent = "比值 = 沪深300全收益 ÷ 二级债基";
+  const span = (t1 - t0) / 3.156e10, every = [1, 2, 4, 5].find(s => iw / span * s >= 44) || 5;
+  for (let y = c.xs[0].getFullYear() + 1; y <= c.xs.at(-1).getFullYear(); y++)
+    if (y % every === 0) el("text", { x: X(new Date(y, 0, 1)), y: H - 6, "text-anchor": "middle" }, g).textContent = y;
+  const path = (a, Y) => a.map((v, i) => (i ? "L" : "M") + X(c.xs[i]).toFixed(1) + "," + Y(v).toFixed(1)).join("");
+  el("path", { d: path(c.bf, Y1), fill: "none", stroke: "var(--text-secondary)", "stroke-width": 2 }, svg);
+  el("path", { d: path(c.eq, Y1), fill: "none", stroke: "var(--s-csi)", "stroke-width": 2 }, svg);
+  const clip = el("clipPath", { id: "v1clip" }, el("defs", {}, svg));
+  el("rect", { x: 0, y: P2.t, width: W, height: P2.h }, clip);
+  el("path", { d: path(c.R, Y2), fill: "none", stroke: "var(--text-primary)", "stroke-width": 2, "clip-path": "url(#v1clip)" }, svg);
+  const iMax = c.R.indexOf(sorted.at(-1));
+  if (sorted.at(-1) > hi2) el("text", { x: X(c.xs[iMax]) + 6, y: P2.t + 10, class: "band-label" }, svg).textContent = `↑ 最高 ${sorted.at(-1).toFixed(1)}`;
+  if (!narrow) {
+    el("text", { x: M.l + iw + 6, y: Y1(c.eq.at(-1)) + 4, class: "panel-key" }, svg).textContent = Math.round(c.eq.at(-1));
+    el("text", { x: M.l + iw + 6, y: Y1(c.bf.at(-1)) + 4, class: "panel-key" }, svg).textContent = Math.round(c.bf.at(-1));
+  }
+  for (const b of VERIFY_BOTTOMS) {
+    const i = c.d.findIndex(s => s >= b);
+    if (i <= 0) continue;
+    const y = Math.max(P2.t, Math.min(P2.t + P2.h, Y2(c.R[i])));
+    el("circle", { cx: X(c.xs[i]), cy: y, r: 4, fill: "var(--surface-1)", stroke: "var(--text-primary)", "stroke-width": 1.5 }, svg);
+    if (!narrow) el("text", { x: X(c.xs[i]), y: y + 15, "text-anchor": "middle", class: "band-label" }, svg).textContent = b.slice(0, 7);
+  }
+  for (const x of c.crosses) {
+    const cx = X(c.xs[x.i]), cy = Y2(1);
+    el("path", { d: `M${cx - 5},${cy - 9}L${cx + 5},${cy - 9}L${cx},${cy - 1}Z`, fill: "var(--s-csi)" }, svg);
+  }
+  const cross = el("line", { y1: P1.t, y2: P2.t + P2.h, stroke: "var(--text-muted)", "stroke-width": 1 }, svg);
+  const dots = ["var(--s-csi)", "var(--text-secondary)", "var(--text-primary)"].map(f => el("circle", { r: 3.5, fill: f, stroke: "var(--surface-1)", "stroke-width": 2 }, svg));
+  let cur = c.d.length - 1;
+  const select = k => {
+    cur = k;
+    const x = X(c.xs[k]);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x);
+    [[c.eq[k], Y1], [c.bf[k], Y1], [c.R[k], Y2]].forEach(([v, Y], j) => { dots[j].setAttribute("cx", x); dots[j].setAttribute("cy", Y(v)); });
+    dots[2].setAttribute("visibility", Y2(c.R[k]) >= P2.t ? "visible" : "hidden");
+    ro.textContent = "";
+    h("div", { className: "d", textContent: c.d[k] + (k === c.d.length - 1 ? "（最新）" : "") }, ro);
+    for (const [col, val, name] of [["var(--s-csi)", Math.round(c.eq[k]).toLocaleString("en-US"), "沪深300全收益"],
+      ["var(--text-secondary)", Math.round(c.bf[k]).toLocaleString("en-US"), "二级债基指数（复刻 885007）"],
+      ["var(--text-primary)", c.R[k].toFixed(2), c.R[k] < 1 ? "比值（低于 1：处于跌破状态）" : "比值"]]) {
+      const row = h("div", { className: "row" }, ro);
+      h("i", {}, row).style.background = col;
+      h("b", { textContent: val }, row);
+      h("em", { textContent: name }, row);
+      h("small", {}, row);
+    }
+  };
+  const pick = e => {
+    const r = svg.getBoundingClientRect(), t = t0 + ((e.clientX - r.left) * W / r.width - M.l) / iw * (t1 - t0);
+    let k = 0;
+    c.xs.forEach((d, i) => { if (Math.abs(d - t) < Math.abs(c.xs[k] - t)) k = i; });
+    select(k);
+  };
+  svg.onpointerdown = pick;
+  svg.onpointermove = pick;
+  svg.onkeydown = e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    select(Math.max(0, Math.min(c.d.length - 1, cur + (e.key === "ArrowRight" ? 1 : -1))));
+  };
+  select(cur);
+  $("v1-sum").textContent = verifySummary(c, verifyState.base);
+}
+// 板块初始化：结论、基准日切换按钮、文档链接（只做一次）
+function initVerify(narrow) {
+  $("v1-verdict").textContent = VERIFY_VERDICT;
+  $("v1-doc").href = VERIFY_DOC;
+  const box = $("v1-base");
+  for (const [label, v] of VERIFY_BASES) {
+    const b = h("button", { type: "button", textContent: label }, box);
+    b.setAttribute("aria-pressed", String(verifyState.base === v));
+    b.onclick = () => { verifyState.base = v; [...box.children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderVerify(narrow); };
+  }
+}

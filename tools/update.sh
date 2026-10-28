@@ -1,11 +1,22 @@
 #!/usr/bin/env bash
-# 一键更新：下载数据 → 15 天采样 → 生成页面 → 回填分析文档里的数字并复核结论
-# One-shot update: fetch → sample → build page → refill numbers in docs/ANALYSIS.md and re-check conclusions
-# 用法 | usage: tools/update.sh [--no-fetch]   （--no-fetch 用 raw/ 里已有的数据）
+# 一键更新：下载数据 → 复刻二级债基指数 → 采样 → 生成页面 → 回填分析文档和验证文档里的数字并复核结论
+# One-shot update: fetch → replicate bond-fund index → sample → build pages → refill ANALYSIS.md / VERIFY.md and re-check conclusions
+# 用法 | usage: tools/update.sh [--no-fetch] [--no-funds]
+#   --no-fetch  不下载任何数据，全部用 raw/ 里已有的
+#   --no-funds  下载 FRED、Yahoo、中证数据，但不重新下载约 900 只二级债基的净值（最慢的一步，几分钟）
 set -euo pipefail
 export PYTHONIOENCODING=utf-8
 cd "$(dirname "$0")/.."
 DOC="docs/ANALYSIS.md"
+VERIFY="docs/VERIFY.md"
+FETCH=1; FUNDS=1
+for a in "$@"; do
+  case "$a" in
+    --no-fetch) FETCH=0; FUNDS=0 ;;
+    --no-funds) FUNDS=0 ;;
+    *) echo "未知参数：$a" >&2; exit 2 ;;
+  esac
+done
 
 # 找一个装了 numpy 的 Python；可用环境变量 PYTHON 指定 | pick a Python with numpy, or set $PYTHON
 if [ -z "${PYTHON:-}" ]; then
@@ -16,8 +27,11 @@ fi
 [ -n "${PYTHON:-}" ] || { echo "找不到装有 numpy 的 Python，请先 pip install -r requirements.txt，或设置 PYTHON=..." >&2; exit 1; }
 export PYTHON
 
-[ "${1:-}" = "--no-fetch" ] || bash tools/fetch.sh
-"$PYTHON" -I tools/sample.py raw > build/data.json
+[ "$FETCH" = 1 ] && bash tools/fetch.sh
+[ "$FUNDS" = 1 ] && "$PYTHON" -I tools/fetch_funds.py raw build
+[ -d raw/funds ] || { echo "raw/funds 里没有基金净值，请先不带 --no-funds 运行一次" >&2; exit 1; }
+"$PYTHON" -I tools/replica.py raw/funds build/bondfund.json
+"$PYTHON" -I tools/sample.py raw build/bondfund.json > build/data.json
 # 两个页面模板共用 tools/common.js，构建时内联，生成的页面仍是单个自包含文件
 "$PYTHON" -I - tools/common.js build/data.json docs tools/template.html=index.html tools/template_mobile.html=mobile.html <<'PY'
 import sys
@@ -32,3 +46,4 @@ for pair in sys.argv[4:]:
     print(f"页面已生成：{outdir}/{name}")
 PY
 "$PYTHON" -I tools/report.py raw build/data.json "$DOC"
+"$PYTHON" -I tools/verify_report.py raw build/bondfund.json "$VERIFY"

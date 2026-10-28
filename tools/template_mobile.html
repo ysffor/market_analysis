@@ -31,6 +31,7 @@
     --s-be: #eda100;
     --s-tga: #e87ba4;
     --s-rrp: #008300;
+    --s-csi: #e34948;
     --wash: rgba(11,11,11,0.05);
   }
   @media (prefers-color-scheme: dark) {
@@ -53,6 +54,7 @@
       --s-be: #c98500;
       --s-tga: #d55181;
       --s-rrp: #008300;
+      --s-csi: #e66767;
       --wash: rgba(255,255,255,0.06);
     }
   }
@@ -119,6 +121,18 @@
   th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface-1); }
   th { position: sticky; top: 0; background: var(--surface-1); color: var(--text-secondary); font-weight: 600; z-index: 1; }
   th:first-child { z-index: 2; }
+  /* 专题验证板块：单独分类，和上面的分析区分开 */
+  .cat { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 32px 0 8px; padding-top: 16px; border-top: 2px solid var(--axis); }
+  .cat h2 { margin: 0; }
+  .badge { font-size: 12px; font-weight: 600; color: var(--text-primary); border: 1px solid var(--text-primary); border-radius: 4px; padding: 1px 6px; }
+  .cat-note { color: var(--text-muted); font-size: 12px; }
+  .vt { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .verdict { font-size: 13px; color: var(--text-primary); background: var(--wash); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px; line-height: 1.6; }
+  .vbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .vlegend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .vlegend i { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 5px; }
+  .vbar .seg { flex: 1; }
+  .seg-label { color: var(--text-muted); font-size: 12px; width: 100%; }
   .note { color: var(--text-muted); font-size: 12px; margin-top: 12px; line-height: 1.6; }
 </style>
 </head>
@@ -158,6 +172,26 @@
     <div class="readout" id="ro4"></div>
     <svg id="lag" tabindex="0" role="img" aria-label="净流动性与实际利率领先滞后相关系数柱状图"></svg>
     <p class="reading" id="reading"></p>
+  </section>
+
+  <section id="verify">
+    <div class="cat"><span class="badge">专题验证</span><h2>用数据检验市场说法</h2>
+      <span class="cat-note">与上面的美元流动性分析相互独立，不受顶部区间切换影响</span></div>
+    <div class="card">
+      <h3 class="vt">验证 1：沪深300全收益跌破二级债基指数，就是底部？</h3>
+      <p class="verdict" id="v1-verdict"></p>
+      <div class="vbar"><span class="seg-label">基准日（两者在这天都设为 1000）</span><div class="seg" id="v1-base"></div></div>
+      <div class="vlegend">
+        <span><i style="background:var(--s-csi)"></i>沪深300全收益</span>
+        <span><i style="background:var(--text-secondary)"></i>二级债基指数（按万得 885007 规则复刻）</span>
+        <span><i style="background:var(--text-primary)"></i>比值</span>
+        <span>▼ 跌破点　○ 历次大底</span>
+      </div>
+      <div class="readout" id="v1-ro"></div>
+      <svg id="v1" tabindex="0" role="img" aria-label="沪深300全收益与二级债基指数叠加图及两者比值"></svg>
+      <p class="reading" id="v1-sum"></p>
+      <p class="reading"><a id="v1-doc">完整验证过程、数据说明与结论复核（VERIFY.md）</a></p>
+    </div>
   </section>
 
   <details>
@@ -251,6 +285,7 @@ function render() {
     return "净流动性变化的最大来源：" + parts.reduce((a, b) => Math.abs(b[1]) > Math.abs(a[1]) ? b : a)[0];
   });
   renderLag(i0, i1);
+  renderVerify(true);
 }
 
 function renderTiles(i0, i1) {
@@ -491,6 +526,7 @@ function seg(id, items, get, set) {
 seg("range", RANGES, () => state.years, v => state.years = v);
 seg("scale", SCALES, () => state.scale, v => state.scale = v);
 renderNote();
+initVerify(true);
 $("note").appendChild(document.createTextNode(
   `数据截至：黄金 ${DATA.asof.gold}，原油 ${DATA.asof.oil}，美债 ${DATA.asof.y10}，美元指数 ${DATA.asof.dxy}，净流动性 ${DATA.asof.netliq}。`));
 renderTable();
