@@ -28,6 +28,7 @@ fi
 export PYTHON
 
 [ "$FETCH" = 1 ] && bash tools/fetch.sh
+[ "$FETCH" = 1 ] && "$PYTHON" -I tools/fetch_cn.py raw   # 国内数据（B、C 部分）
 [ "$FUNDS" = 1 ] && "$PYTHON" -I tools/fetch_funds.py raw build
 [ -d raw/funds ] || { echo "raw/funds 里没有基金净值，请先不带 --no-funds 运行一次" >&2; exit 1; }
 "$PYTHON" -I tools/replica.py raw/funds build/bondfund.json
@@ -47,6 +48,7 @@ for pair in sys.argv[4:]:
     print(f"页面已生成：{outdir}/{name}")
 PY
 "$PYTHON" -I tools/report.py raw build/data.json "$DOC"
+"$PYTHON" -I tools/analysis_cn.py raw "$DOC"   # B、C 部分
 "$PYTHON" -I tools/verify_report.py raw build/bondfund.json "$VERIFY"
 # 独立的专题验证报告页（VERIFY.md 转 HTML + 交互图表）
 "$PYTHON" -I tools/build_verify_report.py "$VERIFY" build/data.json tools/common.js tools/template_verify.html docs/verify/index.html

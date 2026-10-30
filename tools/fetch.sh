@@ -4,7 +4,7 @@
 set -euo pipefail
 RAW="$(cd "$(dirname "$0")/../raw" && pwd)"
 START="$(( $(date +%Y) - 21 ))-01-01"   # 多取一年，保证 20 年窗口起点之前有值
-FRED="DGS10 DFII10 T10YIE DCOILWTICO DTWEXBGS WALCL WTREGEN RRPONTSYD"
+FRED="DGS10 DFII10 T10YIE DCOILWTICO DTWEXBGS WALCL WTREGEN RRPONTSYD DEXCHUS DFF"
 for s in $FRED; do
   curl -fsSL -m 120 --retry 2 -o "$RAW/$s.csv.tmp" "https://fred.stlouisfed.org/graph/fredgraph.csv?id=$s&cosd=$START"
   head -1 "$RAW/$s.csv.tmp" | grep -q "observation_date,$s" || { echo "FRED $s: 返回内容不是 CSV" >&2; exit 1; }

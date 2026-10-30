@@ -2,14 +2,14 @@
 
 一个静态网页加两份文档，内容分两类：
 
-- **分析**：观察过去 20 年黄金、原油、10 年期美债收益率的走势，以及它们和美元流动性的关系。
+- **分析**：分三部分：A 美元流动性的趋势（含黄金、原油、10 年期美债收益率与美元流动性的关系），B 人民币流动性的趋势，C 美元收紧对人民币流动性的影响有多大。
 - **专题验证**：用数据检验市场上流传的说法，和上面的分析相互独立。
 
 **在线查看：** 电脑版 <https://ysffor.github.io/market_analysis/> ｜ 手机版 <https://ysffor.github.io/market_analysis/mobile.html> ｜ 专题验证报告 <https://ysffor.github.io/market_analysis/verify/>
 
 - **页面**：电脑版 `docs/index.html` 和手机版 `docs/mobile.html`。每个都是单个 HTML 文件，数据内嵌，打开不需要联网，也不依赖任何外部库。
 - **专题验证报告**（`docs/verify/index.html`）：把验证文档做成独立网页，正文中嵌入交互图表，电脑和手机共用。
-- **分析文档**（[docs/ANALYSIS.md](docs/ANALYSIS.md)）：分析思路、主要发现、判断流程和局限。
+- **分析文档**（[docs/ANALYSIS.md](docs/ANALYSIS.md)）：A / B / C 三部分的分析思路、方法、主要发现、判断流程和局限。目前看板页面只展示 A 部分，B、C 部分的结果在文档里。
 - **验证文档**（[docs/VERIFY.md](docs/VERIFY.md)）：每条验证的说法、结论、方法与数据、结果和局限。
 
 两份文档里的数字都由脚本自动计算回填，每次更新还会复核结论是否仍然成立。
@@ -57,6 +57,7 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 ├── tools/
 │   ├── update.sh        一键更新
 │   ├── fetch.sh         下载原始数据（FRED、Yahoo、中证）
+│   ├── fetch_cn.py      下载国内数据（中国货币网、东方财富），用于分析 B、C 部分
 │   ├── fetch_funds.py   下载全部二级债基的净值（专题验证用）
 │   ├── replica.py       按万得 885007 规则复刻二级债基指数，并按公开点位校正
 │   ├── sample.py        每 15 天采样，输出页面数据
@@ -64,7 +65,8 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 │   ├── template_mobile.html  手机版页面模板
 │   ├── template_verify.html  专题验证报告页模板
 │   ├── common.js        两个页面共用的数据处理与分析逻辑（构建时内联）
-│   ├── report.py        计算分析文档里的数字、复核结论、维护事件列表
+│   ├── report.py        计算分析文档 A 部分的数字、复核结论、维护事件列表
+│   ├── analysis_cn.py   计算分析文档 B、C 部分：人民币流动性与美元传导
 │   ├── verify_report.py 验证 1：计算验证文档里的数字、复核结论
 │   ├── verify2.py       验证 2：回测红利指数均线策略、回填验证文档、输出页面数据
 │   └── build_verify_report.py  把 VERIFY.md 转成专题验证报告页，并嵌入交互图表
@@ -72,7 +74,7 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 └── build/               中间数据（不进 git）
 ```
 
-修改页面请改模板，不要直接改生成的 `docs/*.html`。分析逻辑、图表配置、QE/QT 时期等两个页面共用的内容在 `tools/common.js` 里，只改一处；排版和交互分别在 `template.html` 和 `template_mobile.html` 里。文档的维护约定见 [ANALYSIS.md 第 8 节](docs/ANALYSIS.md#8-更新与维护)。
+修改页面请改模板，不要直接改生成的 `docs/*.html`。分析逻辑、图表配置、QE/QT 时期等两个页面共用的内容在 `tools/common.js` 里，只改一处；排版和交互分别在 `template.html` 和 `template_mobile.html` 里。文档的维护约定见 [ANALYSIS.md 第 10 节](docs/ANALYSIS.md#10-更新与维护)。
 
 ## 数据来源
 
@@ -87,6 +89,9 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 | 二级债基指数（专题验证） | 天天基金上全部二级债基的历史净值，按万得 885007 的规则复刻，再用 885007 的公开点位和年度收益校正（方法见 VERIFY.md） |
 | 红利指数（专题验证 2） | 中证指数官网：中证红利、红利低波、红利低波100、央企红利、国企红利、上证红利、港股通高股息的价格指数和全收益指数 |
 | 货币基金指数（专题验证 2） | 中证指数官网，`H11025`，用于计算卖出后现金的收益 |
+| 联邦基金利率、美元兑人民币（分析 B、C） | FRED：`DFF`、`DEXCHUS` |
+| 回购定盘利率 FR007 / DR007、SHIBOR（分析 B、C） | 中国货币网（全国银行间同业拆借中心） |
+| 中美国债收益率、M2/M1、新增人民币贷款、外汇储备、存款准备金率、LPR、PMI、CPI（分析 B、C） | 东方财富数据中心（原始来源为人民银行、外汇局、统计局等） |
 
 ## 数据许可
 
@@ -104,4 +109,4 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 
 ## 免责声明
 
-本项目只用于学习和研究，不构成任何投资建议。分析结论基于历史相关性，相关不等于因果，详见 [ANALYSIS.md 第 7 节](docs/ANALYSIS.md#7-局限) 和 [VERIFY.md](docs/VERIFY.md) 中每条验证的局限。
+本项目只用于学习和研究，不构成任何投资建议。分析结论基于历史相关性，相关不等于因果，详见 [ANALYSIS.md 第 9 节](docs/ANALYSIS.md#9-局限) 和 [VERIFY.md](docs/VERIFY.md) 中每条验证的局限。
