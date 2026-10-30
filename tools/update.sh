@@ -29,6 +29,7 @@ export PYTHON
 
 [ "$FETCH" = 1 ] && bash tools/fetch.sh
 [ "$FETCH" = 1 ] && "$PYTHON" -I tools/fetch_cn.py raw   # 国内数据（B、C 部分）
+[ "$FETCH" = 1 ] && "$PYTHON" -I tools/fetch_ashare.py raw   # A 股成交额专题
 [ "$FUNDS" = 1 ] && "$PYTHON" -I tools/fetch_funds.py raw build
 [ -d raw/funds ] || { echo "raw/funds 里没有基金净值，请先不带 --no-funds 运行一次" >&2; exit 1; }
 "$PYTHON" -I tools/replica.py raw/funds build/bondfund.json
@@ -49,7 +50,9 @@ for pair in sys.argv[4:]:
 PY
 "$PYTHON" -I tools/report.py raw build/data.json "$DOC"
 "$PYTHON" -I tools/analysis_cn.py raw "$DOC" build/cn.json   # B、C 部分，同时输出分析报告页的图表数据
+"$PYTHON" -I tools/ashare.py raw docs/ashare/REPORT.md build/ashare.json   # A 股成交额专题
 "$PYTHON" -I tools/verify_report.py raw build/bondfund.json "$VERIFY"
 # 独立的报告页：专题验证报告、分析报告（Markdown 转 HTML + 交互图表）
 "$PYTHON" -I tools/build_report.py verify "$VERIFY" build/data.json tools/template_verify.html docs/verify/index.html tools/common.js
 "$PYTHON" -I tools/build_report.py analysis "$DOC" build/cn.json tools/template_analysis.html docs/analysis/index.html
+"$PYTHON" -I tools/build_report.py ashare docs/ashare/REPORT.md build/ashare.json tools/template_ashare.html docs/ashare/index.html

@@ -523,11 +523,11 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 
 脚本依次执行：
 
-1. `fetch.sh` 下载 FRED、Yahoo 和中证数据到 `raw/`；`fetch_cn.py` 下载中国货币网和东方财富的国内数据到 `raw/cn/`；`fetch_funds.py` 下载二级债基净值，`replica.py` 复刻二级债基指数（这两步只用于专题验证）。
+1. `fetch.sh` 下载 FRED、Yahoo 和中证数据到 `raw/`；`fetch_cn.py` 下载中国货币网和东方财富的国内数据到 `raw/cn/`；`fetch_ashare.py` 下载 A 股成交额专题的数据到 `raw/ashare/`；`fetch_funds.py` 下载二级债基净值，`replica.py` 复刻二级债基指数（这两步只用于专题验证）。
 2. `sample.py` 按 15 天采样（专题验证部分按周），写入 `build/data.json`。
 3. 把 `common.js` 和数据内联进两个模板，生成 `docs/index.html`（电脑版）和 `docs/mobile.html`（手机版）。
-4. `report.py` 重算本文 A 部分的 AUTO 区块，`analysis_cn.py` 重算 B、C 部分，并分别重新跑[结论复核](#103-结论复核)；`verify_report.py`、`verify2.py` 对 VERIFY.md 中的验证 1、验证 2 做同样的事（`verify2.py` 在生成页面之前运行，同时输出页面数据）。
-5. `build_report.py` 把更新后的 VERIFY.md、本文分别转成独立的报告页：专题验证报告 `docs/verify/index.html`、分析报告 `docs/analysis/index.html`（B、C 部分嵌入月度交互图表，图表数据由 `analysis_cn.py` 输出到 `build/cn.json`）。
+4. `report.py` 重算本文 A 部分的 AUTO 区块，`analysis_cn.py` 重算 B、C 部分，并分别重新跑[结论复核](#103-结论复核)；`verify_report.py`、`verify2.py` 对 VERIFY.md 中的验证 1、验证 2 做同样的事（`verify2.py` 在生成页面之前运行，同时输出页面数据）；`ashare.py` 对 A 股成交额专题 `docs/ashare/REPORT.md` 做同样的事。
+5. `build_report.py` 把更新后的 VERIFY.md、本文分别转成独立的报告页：专题验证报告 `docs/verify/index.html`、分析报告 `docs/analysis/index.html`（B、C 部分嵌入月度交互图表，图表数据由 `analysis_cn.py` 输出到 `build/cn.json`）；A 股成交额专题同样生成 `docs/ashare/index.html`（周度图表，数据在 `build/ashare.json`）。
 
 依赖：bash、curl、Python 3（需要 numpy，见 `requirements.txt`）。Windows 上用 Git Bash 运行。
 
@@ -602,9 +602,10 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 | `tools/analysis_cn.py` | 计算本文 B、C 部分：月度面板、收紧指数、回归、渠道分解、事件研究、结论复核 |
 | `tools/fetch_funds.py`、`tools/replica.py`、`tools/verify_report.py` | 专题验证 1：下载二级债基净值、复刻 885007、计算并回填 VERIFY.md |
 | `tools/verify2.py` | 专题验证 2：回测红利指数均线策略、回填 VERIFY.md、输出页面数据 |
-| `tools/build_report.py` | 把 VERIFY.md、本文转成独立的报告页（Markdown 转 HTML，插入交互图表） |
+| `docs/ashare/REPORT.md`、`tools/fetch_ashare.py`、`tools/ashare.py`、`tools/template_ashare.html` | A 股成交额专题：文档、数据下载、计算回填与结论复核、报告页模板 |
+| `tools/build_report.py` | 把 VERIFY.md、本文、A 股专题文档转成独立的报告页（Markdown 转 HTML，插入交互图表） |
 | `tools/template_verify.html`、`tools/template_analysis.html` | 专题验证报告页、分析报告页的模板 |
-| `docs/verify/index.html`、`docs/analysis/index.html` | 生成的专题验证报告页、分析报告页 |
+| `docs/verify/index.html`、`docs/analysis/index.html`、`docs/ashare/index.html` | 生成的专题验证报告页、分析报告页、A 股成交额专题报告页 |
 | `raw/` | 下载的原始数据（只放下载文件，不进 git） |
 | `build/data.json` | 采样后的数据（不进 git） |
 | `docs/index.html`、`docs/mobile.html` | 生成的电脑版、手机版页面，通过 GitHub Pages 公开发布 |
@@ -613,6 +614,7 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 
 | 日期 | 变更 |
 |---|---|
+| 2026-10-30 | 新增独立的 A 股成交额专题（`docs/ashare/`）：问题是"A 股成交额腰斩是否以国内人为因素为主"，结论和方法见该专题文档；更新脚本增加 `fetch_ashare.py`、`ashare.py`；分析报告页和专题验证报告页加了入口。本文的分析内容没有变化。 |
 | 2026-10-30 | 新增分析报告页 `docs/analysis/index.html`：由本文自动生成，B、C 部分嵌入三张月度交互图表（人民币流动性主要指标、收紧指数对比、传导渠道）；报告生成脚本统一为 `tools/build_report.py`；看板和专题验证报告页加了入口。 |
 | 2026-10-30 | 本文改为 A / B / C 三部分：原有的美元流动性分析成为 A（第 4 节，内容不变）；新增 B 人民币流动性（第 5 节）和 C 美元收紧对人民币流动性的影响（第 6 节），数据来自中国货币网、东方财富和 FRED，B、C 的数字由新脚本 `tools/analysis_cn.py` 回填并复核结论。章节编号随之调整：原第 5–9 节改为第 7–11 节。 |
 | 2026-10-28 | 页面底部新增独立的"专题验证"板块（验证 1：沪深300全收益跌破二级债基指数，就是底部？），内容和结论放在新文档 VERIFY.md，与本文的分析分开；更新脚本增加中证指数和二级债基净值的下载，新增 `--no-funds` 选项。本文的分析内容没有变化。 |

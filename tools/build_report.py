@@ -1,19 +1,23 @@
 # 生成独立的报告页：把 Markdown 文档转成 HTML，并在指定位置插入交互图表。
 #   verify   docs/VERIFY.md   → docs/verify/index.html：每条验证的"方法与数据"之前插入验证图表（复用 tools/common.js）
 #   analysis docs/ANALYSIS.md → docs/analysis/index.html：A 部分放看板链接，B、C 部分插入月度图表（绘图代码在模板里）
+#   ashare   docs/ashare/REPORT.md → docs/ashare/index.html：A 股成交额专题，插入两张周度图表（绘图代码在模板里）
 # Markdown 转换只覆盖这两份文档用到的语法（标题、段落、列表、表格、引用、代码块、粗体、行内代码、链接），不引入额外依赖。
 # 面向维护者的章节（VERIFY.md 的"维护"、ANALYSIS.md 的"更新与维护"）不放进报告；指向报告里不存在的章节的链接改指向 GitHub 原文。
 # Build the standalone report pages from VERIFY.md / ANALYSIS.md with interactive charts inserted.
 # 用法 | usage:
 #   python -I build_report.py verify   <VERIFY.md>   <build/data.json> <template_verify.html>   <输出> <common.js>
 #   python -I build_report.py analysis <ANALYSIS.md> <build/cn.json>   <template_analysis.html> <输出>
+#   python -I build_report.py ashare   <ashare/REPORT.md> <build/ashare.json> <template_ashare.html> <输出>
 import html, json, os, re, sys
 
 MODE, SRC, DATA_JSON, TPL, OUT = sys.argv[1:6]
 COMMON = sys.argv[6] if len(sys.argv) > 6 else None
 REPO = "https://github.com/ysffor/market_analysis/blob/main/docs/"
-SELF = {"verify": "VERIFY.md", "analysis": "ANALYSIS.md"}[MODE]
-OTHER = {"verify": ("ANALYSIS.md", "../analysis/index.html"), "analysis": ("VERIFY.md", "../verify/index.html")}[MODE]
+SELF = {"verify": "VERIFY.md", "analysis": "ANALYSIS.md", "ashare": "ashare/REPORT.md"}[MODE]
+# 文档（相对 docs/ 的路径）→ 对应报告页（相对报告页所在目录）
+REPORT_PAGE = {"VERIFY.md": "../verify/index.html", "ANALYSIS.md": "../analysis/index.html", "ashare/REPORT.md": "../ashare/index.html"}
+BASE = os.path.dirname(SELF)        # 原文所在目录（相对 docs/），用来解析原文里的相对链接
 
 CARDS = {
     "1": """<div class="card" id="verify">
@@ -57,6 +61,13 @@ CARDS = {
     "cc": """<div class="card"><p class="card-cap">交互图表：传导渠道（月度）。阴影为美元收紧期；点按或悬停查看数值。</p>
   <div class="readout" id="cc-ro"></div><svg id="cc" tabindex="0" role="img" aria-label="中美国债收益率、利差、美元兑人民币与外汇储备"></svg></div>""",
 }
+CARDS["sa"] = """<div class="card"><p class="card-cap">交互图表：A 股成交额与中证全指（周度）。浅色阴影为峰值阶段和最近阶段，虚线竖线为政策和市场事件；点按或悬停查看数值。</p>
+  <div class="readout" id="sa-ro"></div><svg id="sa" tabindex="0" role="img" aria-label="A 股周日均成交额与中证全指"></svg>
+  <div class="evlist" id="sa-ev"></div></div>"""
+CARDS["sb"] = """<div class="card"><p class="card-cap">交互图表：杠杆资金、宽基 ETF 资金进出与 IPO 募资（周度）。阴影与竖线同上；点按或悬停查看数值。</p>
+  <div class="readout" id="sb-ro"></div><svg id="sb" tabindex="0" role="img" aria-label="融资余额、两融交易占比、宽基 ETF 累计资金净流入与 IPO 募资"></svg></div>"""
+# ashare 模式：在这些标题之前插入对应的卡片
+ASHARE_INSERT = {"### 4.2 分解：指数下跌与换手率下降": "sa", "### 4.4 杠杆资金": "sb"}
 # analysis 模式：在这些标题之前插入对应的卡片
 ANALYSIS_INSERT = {"### 4.1 发现 1：三者反映的是美元的价格，不是数量": "A", "### 5.3 发现": "cb",
                    "### 6.1 整体解释力": "ci", "### 6.3 事件研究": "cc"}
@@ -75,13 +86,14 @@ def slug(text):
 def link_url(u):
     if u.startswith(("http://", "https://", "#")):
         return u
-    if u.startswith(SELF):
-        return u[len(SELF):] or "#"
-    if u.startswith(OTHER[0]):
-        return OTHER[1] + u[len(OTHER[0]):]       # 另一份文档有自己的报告页
-    if u.startswith("../"):
-        return u
-    return REPO + u
+    path, _, anchor = u.partition("#")
+    doc = os.path.normpath(os.path.join(BASE, path)).replace("\\", "/")   # 原文里的相对路径换成相对 docs/ 的路径
+    frag = f"#{anchor}" if anchor else ""
+    if doc == SELF:
+        return frag or "#"
+    if doc in REPORT_PAGE:
+        return REPORT_PAGE[doc] + frag                 # 另一份文档有自己的报告页
+    return REPO + doc + frag
 
 
 def inline(s):
@@ -211,9 +223,11 @@ for l in src:
         lines += [f"@@CARD{cur}@@", ""]
     if MODE == "analysis" and l.strip() in ANALYSIS_INSERT:
         lines += [f"@@CARD{ANALYSIS_INSERT[l.strip()]}@@", ""]
+    if MODE == "ashare" and l.strip() in ASHARE_INSERT:
+        lines += [f"@@CARD{ASHARE_INSERT[l.strip()]}@@", ""]
     lines.append(l)
 report = blocks(lines)
-need = {"verify": ('id="verify"', 'id="verify2"'), "analysis": ('id="cb"', 'id="ci"', 'id="cc"', "note-card")}[MODE]
+need = {"verify": ('id="verify"', 'id="verify2"'), "analysis": ('id="cb"', 'id="ci"', 'id="cc"', "note-card"), "ashare": ('id="sa"', 'id="sb"')}[MODE]
 assert all(k in report for k in need), "图表卡片没有全部插入，文档的结构可能变了"
 # 报告里没有的锚点（例如被略去的"更新与维护"）改指向 GitHub 原文
 ids = set(re.findall(r'id="([^"]+)"', report))

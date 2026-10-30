@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A 股成交额腰斩：原因拆解</title>
+<!--
+  A 股成交额专题报告页：由 tools/build_report.py 把 docs/ashare/REPORT.md 转成 HTML 填入正文位置，并插入两张周度交互图表。
+  图表数据来自 tools/ashare.py 输出的周度序列（构建时内嵌），图表组件改自分析报告页模板：日期轴改为周度，阴影为峰值阶段和最近阶段，竖线为政策和市场事件。
+  Standalone A-share turnover report: REPORT.md rendered to HTML with weekly interactive charts.
+-->
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.05); --link: #2a78d6;
+    --c-usd: #2a78d6; --c-cny: #e34948; --c-2: #1baf7a; --c-3: #6250d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06); --link: #6da7ec;
+      --c-usd: #3987e5; --c-cny: #e66767; --c-2: #199e70; --c-3: #9085e9;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-padding-top: 12px; }
+  body.viz-root {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 15px/1.7 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 20px max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left));
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  a { color: var(--link); }
+  .topnav { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .badge { font-size: 12px; font-weight: 600; border: 1px solid var(--text-primary); border-radius: 4px; padding: 1px 6px; }
+  .report h1 { font-size: 24px; margin: 4px 0 8px; }
+  .report h2 { font-size: 20px; margin: 40px 0 8px; padding-top: 16px; border-top: 2px solid var(--axis); }
+  .report h3 { font-size: 16px; margin: 24px 0 6px; }
+  .report h4 { font-size: 15px; margin: 16px 0 4px; }
+  .report p { margin: 8px 0; }
+  .report ul, .report ol { padding-left: 1.5em; margin: 6px 0; }
+  .report li { margin: 4px 0; }
+  .report blockquote { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--axis); background: var(--wash); border-radius: 0 6px 6px 0; color: var(--text-secondary); }
+  .report code { font-family: ui-monospace, Consolas, monospace; font-size: 0.9em; background: var(--wash); padding: 1px 4px; border-radius: 4px; }
+  .report pre { background: var(--wash); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+  .report pre code { background: none; padding: 0; }
+  .report hr { border: 0; border-top: 1px solid var(--grid); margin: 24px 0; }
+  .tbl { overflow-x: auto; margin: 8px 0 12px; -webkit-overflow-scrolling: touch; }
+  .tbl table { border-collapse: collapse; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  .tbl th, .tbl td { border-bottom: 1px solid var(--grid); padding: 6px 10px; text-align: left; vertical-align: top; }
+  .tbl th { color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--axis); }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 16px 0; line-height: 1.45; }
+  .card-cap { font-size: 12px; color: var(--text-muted); margin: 0 0 6px; }
+  .note-card { font-size: 14px; color: var(--text-secondary); }
+  .readout { font-size: 13px; margin-bottom: 6px; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .readout .d { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
+  .readout .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 16px; }
+  .readout .row { display: grid; grid-template-columns: 14px auto 1fr; gap: 6px; align-items: baseline; }
+  .readout .row i { display: inline-block; width: 12px; height: 2px; border-radius: 1px; align-self: center; }
+  .readout .row b { font-weight: 600; }
+  .readout .row em { font-style: normal; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card svg { width: 100%; display: block; outline: none; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .tick text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ptitle { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
+  .pkey { fill: var(--text-secondary); font-size: 12px; }
+  .blabel { fill: var(--text-muted); font-size: 10px; }
+  .foot { color: var(--text-muted); font-size: 12px; margin-top: 32px; }
+  .evlist { font-size: 12px; color: var(--text-secondary); margin-top: 8px; line-height: 1.6; }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap">
+  <div class="topnav">
+    <span class="badge">专题分析</span>
+    <a href="../index.html">← 返回看板（电脑版）</a>
+    <a href="../mobile.html">看板手机版</a>
+    <a href="../analysis/index.html">分析报告</a>
+    <a href="../verify/index.html">专题验证报告</a>
+    <a href="https://github.com/ysffor/market_analysis/blob/main/docs/ashare/REPORT.md">在 GitHub 上查看原文</a>
+  </div>
+  <article class="report">
+<h1 id="a-股成交额腰斩原因拆解">A 股成交额腰斩：原因拆解</h1>
+<p>数据截至 2026-10-29，由 <code>tools/update.sh</code> 于 2026-10-30 生成。</p>
+<p>本文是独立的专题分析，网页版（带交互图表）：<a href="https://ysffor.github.io/market_analysis/ashare/">https://ysffor.github.io/market_analysis/ashare/</a>。相关内容：人民币流动性的整体情况见<a href="../analysis/index.html">分析文档</a>的 B 部分。数字由 <code>tools/ashare.py</code> 自动计算回填，每次更新都会复核结论（见<a href="#7-结论复核">第 7 节</a>）。</p>
+<h2 id="1-问题与结论摘要">1. 问题与结论摘要</h2>
+<p><strong>问题</strong>：A 股成交额从 2026 年 5–6 月的高点腰斩，主要是国内人为因素造成的吗？</p>
+<p><strong>结论：说"国内因素为主"成立，说"人为因素为主"不成立。更准确的说法是：这次缩量主要是行情见顶回落后的自然缩量；人为因素确实存在，但主要发生在上涨阶段、方向是降温，可能促成了见顶；见顶以后，人为因素反而在托底。</strong></p>
+<ol><li><strong>缩量是真的。</strong> 峰值阶段（2026 年 5–6 月）日均成交额约 3 万亿元，最近 20 个交易日约 1.5 万亿元，下降约一半（<a href="#41-总览">4.1 节</a>）。</li><li><strong>大部分是"量随价走"。</strong> 成交额 = 市值 × 换手率。指数从高位回落，换手率也随行情降温而下降。按 2019 年以来的量价关系（指数涨跌 1%，成交额平均涨跌近 3%），只看指数的回落，就能解释六成以上的缩量（<a href="#42-分解指数下跌与换手率下降">4.2 节</a>、<a href="#43-量价关系">4.3 节</a>）。</li><li><strong>杠杆资金同步撤退，但只占一小部分。</strong> 融资余额和成交额几乎在同一周见顶，此后明显下降；但两融交易额的减少只占成交额下降的一成多（<a href="#44-杠杆资金">4.4 节</a>）。</li><li><strong>人为因素：上涨时降温，下跌时托底。</strong> 2026 年 1 月监管把融资保证金比例上调到 100%；同月主要宽基 ETF 资金净流出约 7,200 亿元，4–6 月继续流出，整个上涨阶段合计超过 1 万亿元，这通常被理解为"国家队"等大资金减持降温。这些动作都发生在成交额见顶之前，当时成交额还在创新高。成交额见顶以后，宽基 ETF 转为资金净流入，方向和缩量相反（<a href="#45-宽基-etf-的资金进出">4.5 节</a>）。</li><li><strong>不是资金面收紧，也不是 IPO"抽血"。</strong> DR007 没有上升，央行没有收紧银根；IPO 每月募资二三百亿元，相对每天上万亿元的成交额很小（<a href="#46-ipo-募资">4.6 节</a>、<a href="#47-宏观流动性">4.7 节</a>）。</li><li><strong>其他因素</strong>：科技主线获利了结（7 月 10 日科技板块成交额见顶后的 4 周，全市场成交额下降约四分之一）、季节性（国庆节前）、外部压力（美债收益率在高位）都起了作用。量化和高频交易监管的影响无法量化：2025 年 7 月交易所细则施行后成交额反而上升；2026 年"收紧高频认定标准"的说法没有找到官方原文（<a href="#48-政策与市场事件时间线">4.8 节</a>）。</li></ol>
+<h2 id="2-数据与口径">2. 数据与口径</h2>
+<div class="tbl"><table><thead><tr><th>指标</th><th>来源</th><th>说明</th></tr></thead><tbody><tr><td>A 股成交额、指数</td><td>中证指数官网，中证全指（000985）</td><td>日成交额（亿元，单边）、收盘点位；中证全指覆盖全部 A 股</td></tr><tr><td>两融</td><td>东方财富数据中心</td><td>每日融资余额、两融交易额（融资买入 + 融券卖出）、两融交易额占 A 股成交额的比例</td></tr><tr><td>宽基 ETF 份额</td><td>上海证券交易所</td><td>9 只主要宽基 ETF 每周最后一个交易日的份额：上证50（510050）、上证180（510180）、沪深300（510300、510310、510330）、中证500（510500）、中证1000（512100）、科创50（588000、588080）</td></tr><tr><td>宽基 ETF 价格</td><td>东方财富</td><td>周收盘价，不复权</td></tr><tr><td>IPO</td><td>东方财富数据中心</td><td>新股发行明细，净募资额；北交所单位为元，其他板块为亿元，已统一换算</td></tr><tr><td>DR007、M1、M2</td><td>中国货币网、东方财富数据中心</td><td>与<a href="../analysis/index.html">分析文档</a>共用</td></tr></tbody></table></div>
+<ul><li><strong>峰值阶段</strong>：日均成交额最高的连续两个月；<strong>最近阶段</strong>：最近 20 个交易日。两者都由数据自动确定。</li><li><strong>周度数据</strong>：成交额取每周的日均值，指数取周收盘或周内均值。</li><li><strong>宽基 ETF 资金进出</strong> = 每周份额变化 × 当周收盘价。单只 ETF 份额单周变化超过约 35%、且前后一周内价格朝相反方向跳动超过约 35% 的，视为份额拆分或合并，不计入资金流。</li><li><strong>换手率代理</strong> = 成交额 ÷ 中证全指。用指数近似总市值的变化，忽略新股上市和股本变动。</li><li><strong>新开户数</strong>：公开数据只到 2023 年 8 月，没有纳入。<strong>北向资金</strong>：2024 年起不再公布每日净买入，没有纳入。</li></ul>
+<h2 id="3-分析框架">3. 分析框架</h2>
+<p><strong>成交额 = 市值 × 换手率。</strong> 成交额下降，要么是股价跌了（市值变小），要么是大家交易得少了（换手率下降）。</p>
+<p>候选原因和检验方法：</p>
+<div class="tbl"><table><thead><tr><th>候选原因</th><th>如果是它，数据上应该看到</th><th>检验</th></tr></thead><tbody><tr><td>行情回落（量随价走）</td><td>缩量和指数下跌同步；历史量价关系能解释大部分缩量</td><td>分解、量价弹性、领先滞后</td></tr><tr><td>杠杆资金撤退</td><td>融资余额先于或同步于成交额下降；两融交易额下降占比大</td><td>两融数据</td></tr><tr><td>大资金（"国家队"）撤出</td><td>下跌阶段宽基 ETF 大额净流出</td><td>宽基 ETF 资金进出</td></tr><tr><td>监管降温</td><td>政策出台后成交额明显下降</td><td>事件前后对比</td></tr><tr><td>IPO 抽血</td><td>募资规模明显放大，且量级足以影响成交额</td><td>IPO 募资</td></tr><tr><td>资金面收紧</td><td>银行间利率上升</td><td>DR007、M1</td></tr></tbody></table></div>
+<h2 id="4-结果">4. 结果</h2>
+<h3 id="41-总览">4.1 总览</h3>
+<p>峰值阶段为日均成交额最高的连续两个月（2026-05 至 2026-06）；最近阶段为最近 20 个交易日（2026-09-24 至 2026-10-29）。IPO 的最近阶段取最近两个完整月（2026-08、2026-09）。</p>
+<div class="tbl"><table><thead><tr><th>指标</th><th>峰值阶段</th><th>最近阶段</th><th>变化</th></tr></thead><tbody><tr><td>日均成交额（亿元）</td><td>30,701</td><td>15,241</td><td>-50%</td></tr><tr><td>中证全指（期间均值）</td><td>6,443</td><td>5,383</td><td>-16%</td></tr><tr><td>换手率代理：成交额 ÷ 指数</td><td>4.762</td><td>2.834</td><td>-40%</td></tr><tr><td>日均两融交易额（亿元）</td><td>3,176</td><td>1,286</td><td>-59%</td></tr><tr><td>两融交易额占成交额（%）</td><td>10.00</td><td>8.06</td><td>-19%</td></tr><tr><td>融资余额（亿元，期末）</td><td>29,971</td><td>23,567</td><td>-21%</td></tr><tr><td>IPO 月均净募资（亿元）</td><td>229</td><td>217</td><td>-5%</td></tr><tr><td>DR007（%，期间均值）</td><td>1.39</td><td>1.35</td><td>-3%</td></tr><tr><td>主要宽基 ETF 资金净流入（亿元，按月平均）</td><td>-1,557</td><td>+1,819</td><td>—</td></tr></tbody></table></div>
+<p>M1 同比：2026-06 为 4%，2026-09 为 3.2%。指数最高点在 2026-05-13（6,687），此前一年内的最低点在 2025-05-28（4,751）。</p>
+<div class="card"><p class="card-cap">交互图表：A 股成交额与中证全指（周度）。浅色阴影为峰值阶段和最近阶段，虚线竖线为政策和市场事件；点按或悬停查看数值。</p>
+  <div class="readout" id="sa-ro"></div><svg id="sa" tabindex="0" role="img" aria-label="A 股周日均成交额与中证全指"></svg>
+  <div class="evlist" id="sa-ev"></div></div>
+<h3 id="42-分解指数下跌与换手率下降">4.2 分解：指数下跌与换手率下降</h3>
+<p>成交额 = 市值 × 换手率。用中证全指近似总市值的变化（忽略新股上市和股本变动），成交额的下降可以拆成两部分（按对数拆分，两部分相加等于总变化）：</p>
+<div class="tbl"><table><thead><tr><th>部分</th><th>对数变化</th><th>占总下降的比例</th></tr></thead><tbody><tr><td>成交额（合计）</td><td>-0.700（-50%）</td><td>100%</td></tr><tr><td>指数下跌带来的部分</td><td>-0.180（-16%）</td><td>26%</td></tr><tr><td>换手率下降带来的部分</td><td>-0.521（-41%）</td><td>74%</td></tr></tbody></table></div>
+<p>两融交易额（融资买入 + 融券卖出）从峰值阶段的日均 3,176 亿元降到 1,286 亿元，占成交额下降的 <strong>12%</strong>；其余 88% 来自非两融资金。</p>
+<h3 id="43-量价关系">4.3 量价关系</h3>
+<p>用周度数据回归 log(周日均成交额) = a + b × log(中证全指)，b 是"量价弹性"：指数涨跌 1%，成交额平均涨跌 b%。再用 b 推算：只看峰值阶段到最近阶段的指数跌幅，成交额"应该"跌多少。</p>
+<div class="tbl"><table><thead><tr><th>样本</th><th>量价弹性 b</th><th>R²</th><th>按指数跌幅推算的成交额变化</th><th>实际变化</th></tr></thead><tbody><tr><td>2019 年至今</td><td>2.75</td><td>51%</td><td>-39%</td><td>-50%</td></tr><tr><td>2024 年至今</td><td>2.85</td><td>85%</td><td>-40%</td><td>-50%</td></tr></tbody></table></div>
+<p>2024 年以来，指数周涨跌幅与成交额周变化（对数）的相关系数：</p>
+<div class="tbl"><table><thead><tr><th>成交额领先 2 周</th><th>成交额领先 1 周</th><th>同周</th><th>指数领先 1 周</th><th>指数领先 2 周</th></tr></thead><tbody><tr><td>+0.11</td><td>+0.02</td><td>+0.49</td><td>+0.39</td><td>-0.10</td></tr></tbody></table></div>
+<div class="card"><p class="card-cap">交互图表：杠杆资金、宽基 ETF 资金进出与 IPO 募资（周度）。阴影与竖线同上；点按或悬停查看数值。</p>
+  <div class="readout" id="sb-ro"></div><svg id="sb" tabindex="0" role="img" aria-label="融资余额、两融交易占比、宽基 ETF 累计资金净流入与 IPO 募资"></svg></div>
+<h3 id="44-杠杆资金">4.4 杠杆资金</h3>
+<div class="tbl"><table><thead><tr><th>时点</th><th>日期</th><th>数值</th></tr></thead><tbody><tr><td>周日均成交额最高</td><td>2026-06-26 当周</td><td>34,628 亿元</td></tr><tr><td>中证全指最高</td><td>2026-05-13</td><td>6,687</td></tr><tr><td>融资余额最高</td><td>2026-06-25</td><td>30,102 亿元</td></tr><tr><td>融资余额最新</td><td>2026-10-29</td><td>23,567 亿元（较最高 -22%）</td></tr></tbody></table></div>
+<p>各月月末融资余额与当月日均两融交易额占成交额的比例：</p>
+<div class="tbl"><table><thead><tr><th>月份</th><th>融资余额（亿元）</th><th>两融交易额占比（%）</th><th>日均成交额（亿元）</th></tr></thead><tbody><tr><td>2025-06</td><td>18,381</td><td>8.80</td><td>12,900</td></tr><tr><td>2025-07</td><td>19,710</td><td>9.78</td><td>15,905</td></tr><tr><td>2025-08</td><td>22,454</td><td>10.75</td><td>22,512</td></tr><tr><td>2025-09</td><td>23,783</td><td>11.50</td><td>23,625</td></tr><tr><td>2025-10</td><td>24,688</td><td>11.40</td><td>21,079</td></tr><tr><td>2025-11</td><td>24,565</td><td>10.41</td><td>18,586</td></tr><tr><td>2025-12</td><td>25,241</td><td>10.37</td><td>18,290</td></tr><tr><td>2026-01</td><td>26,986</td><td>10.47</td><td>29,885</td></tr><tr><td>2026-02</td><td>26,518</td><td>9.46</td><td>22,667</td></tr><tr><td>2026-03</td><td>25,904</td><td>9.16</td><td>22,822</td></tr><tr><td>2026-04</td><td>26,955</td><td>9.83</td><td>23,006</td></tr><tr><td>2026-05</td><td>28,909</td><td>10.14</td><td>30,940</td></tr><tr><td>2026-06</td><td>29,971</td><td>9.89</td><td>30,497</td></tr><tr><td>2026-07</td><td>25,891</td><td>8.90</td><td>26,122</td></tr><tr><td>2026-08</td><td>26,355</td><td>9.19</td><td>21,663</td></tr><tr><td>2026-09</td><td>25,404</td><td>8.61</td><td>17,554</td></tr><tr><td>2026-10</td><td>23,567</td><td>7.99</td><td>15,316</td></tr></tbody></table></div>
+<h3 id="45-宽基-etf-的资金进出">4.5 宽基 ETF 的资金进出</h3>
+<p>上交所 9 只主要宽基 ETF（上证50、上证180、沪深300 三只、中证500、中证1000、科创50 两只）的资金净流入：每周份额变化 × 当周收盘价。大额申赎通常被视为"国家队"等大资金的动向，但数据本身不能区分是谁在申赎；深交所上市的宽基 ETF 没有纳入。</p>
+<div class="tbl"><table><thead><tr><th>阶段</th><th>起止</th><th>资金净流入（亿元）</th></tr></thead><tbody><tr><td>上涨阶段</td><td>2025-05-28 → 2026-05-13</td><td>-10,537</td></tr><tr><td>其中：2026 年 1 月</td><td>2025-12-31 → 2026-01-31</td><td>-7,234</td></tr><tr><td>下跌阶段</td><td>2026-05-13 → 2026-10-29</td><td>+370</td></tr><tr><td>其中：成交额见顶以后</td><td>2026-06-26 → 2026-10-29</td><td>+2,937</td></tr></tbody></table></div>
+<p>按月的资金净流入（亿元）与当月日均成交额：</p>
+<div class="tbl"><table><thead><tr><th>月份</th><th>ETF 资金净流入（亿元）</th><th>日均成交额（亿元）</th></tr></thead><tbody><tr><td>2025-06</td><td>-48</td><td>12,900</td></tr><tr><td>2025-07</td><td>-144</td><td>15,905</td></tr><tr><td>2025-08</td><td>-488</td><td>22,512</td></tr><tr><td>2025-09</td><td>-351</td><td>23,625</td></tr><tr><td>2025-10</td><td>+103</td><td>21,079</td></tr><tr><td>2025-11</td><td>-63</td><td>18,586</td></tr><tr><td>2025-12</td><td>-9</td><td>18,290</td></tr><tr><td>2026-01</td><td>-7,234</td><td>29,885</td></tr><tr><td>2026-02</td><td>-514</td><td>22,667</td></tr><tr><td>2026-03</td><td>-88</td><td>22,822</td></tr><tr><td>2026-04</td><td>-1,176</td><td>23,006</td></tr><tr><td>2026-05</td><td>-1,911</td><td>30,940</td></tr><tr><td>2026-06</td><td>-1,209</td><td>30,497</td></tr><tr><td>2026-07</td><td>+1,044</td><td>26,122</td></tr><tr><td>2026-08</td><td>-420</td><td>21,663</td></tr><tr><td>2026-09</td><td>+269</td><td>17,554</td></tr><tr><td>2026-10</td><td>+2,046</td><td>15,316</td></tr></tbody></table></div>
+<p>2024 年以来单周资金进出最大的几次（周末日期；同周中证全指涨跌幅）：</p>
+<div class="tbl"><table><thead><tr><th>方向</th><th>周</th><th>资金净流入（亿元）</th><th>同周指数涨跌</th></tr></thead><tbody><tr><td>流入</td><td>2025-04-11</td><td>+1,263</td><td>-4.3%</td></tr><tr><td>流入</td><td>2024-02-08</td><td>+980</td><td>+5.8%</td></tr><tr><td>流入</td><td>2026-10-23</td><td>+968</td><td>-0.7%</td></tr><tr><td>流入</td><td>2024-07-19</td><td>+731</td><td>+0.1%</td></tr><tr><td>流入</td><td>2026-07-17</td><td>+727</td><td>-8.7%</td></tr><tr><td>流出</td><td>2026-01-30</td><td>-2,946</td><td>-1.5%</td></tr><tr><td>流出</td><td>2026-01-23</td><td>-2,817</td><td>+1.8%</td></tr><tr><td>流出</td><td>2026-01-16</td><td>-1,546</td><td>+0.5%</td></tr><tr><td>流出</td><td>2026-06-26</td><td>-845</td><td>-1.5%</td></tr><tr><td>流出</td><td>2026-04-30</td><td>-565</td><td>+1.1%</td></tr></tbody></table></div>
+<p>识别为份额拆分或合并、没有计入资金流的：沪深300（易方达）（510310）2024-09-20 当周份额 -48%。</p>
+<h3 id="46-ipo-募资">4.6 IPO 募资</h3>
+<div class="tbl"><table><thead><tr><th>月份</th><th>发行只数</th><th>净募资（亿元）</th><th>日均成交额（亿元）</th></tr></thead><tbody><tr><td>2025-01</td><td>8</td><td>42</td><td>11,786</td></tr><tr><td>2025-02</td><td>5</td><td>35</td><td>18,020</td></tr><tr><td>2025-03</td><td>14</td><td>69</td><td>14,837</td></tr><tr><td>2025-04</td><td>7</td><td>59</td><td>11,932</td></tr><tr><td>2025-05</td><td>8</td><td>90</td><td>11,656</td></tr><tr><td>2025-06</td><td>6</td><td>47</td><td>12,900</td></tr><tr><td>2025-07</td><td>9</td><td>225</td><td>15,905</td></tr><tr><td>2025-08</td><td>7</td><td>26</td><td>22,512</td></tr><tr><td>2025-09</td><td>12</td><td>110</td><td>23,625</td></tr><tr><td>2025-10</td><td>11</td><td>144</td><td>21,079</td></tr><tr><td>2025-11</td><td>10</td><td>194</td><td>18,586</td></tr><tr><td>2025-12</td><td>15</td><td>174</td><td>18,290</td></tr><tr><td>2026-01</td><td>12</td><td>106</td><td>29,885</td></tr><tr><td>2026-02</td><td>8</td><td>38</td><td>22,667</td></tr><tr><td>2026-03</td><td>15</td><td>129</td><td>22,822</td></tr><tr><td>2026-04</td><td>17</td><td>164</td><td>23,006</td></tr><tr><td>2026-05</td><td>12</td><td>92</td><td>30,940</td></tr><tr><td>2026-06</td><td>11</td><td>365</td><td>30,497</td></tr><tr><td>2026-07</td><td>17</td><td>794</td><td>26,122</td></tr><tr><td>2026-08</td><td>19</td><td>202</td><td>21,663</td></tr><tr><td>2026-09</td><td>16</td><td>232</td><td>17,554</td></tr><tr><td>2026-10</td><td>7</td><td>34</td><td>15,316</td></tr></tbody></table></div>
+<p>按申购日期归月；净募资为发行公告中的募资净额。</p>
+<h3 id="47-宏观流动性">4.7 宏观流动性</h3>
+<div class="tbl"><table><thead><tr><th>月份</th><th>DR007 月均（%）</th><th>M1 同比（%）</th><th>M2 同比（%）</th></tr></thead><tbody><tr><td>2025-06</td><td>1.58</td><td>4.6</td><td>8.3</td></tr><tr><td>2025-07</td><td>1.52</td><td>5.6</td><td>8.8</td></tr><tr><td>2025-08</td><td>1.49</td><td>6</td><td>8.8</td></tr><tr><td>2025-09</td><td>1.50</td><td>7.2</td><td>8.4</td></tr><tr><td>2025-10</td><td>1.47</td><td>6.2</td><td>8.2</td></tr><tr><td>2025-11</td><td>1.48</td><td>4.9</td><td>8</td></tr><tr><td>2025-12</td><td>1.50</td><td>3.8</td><td>8.5</td></tr><tr><td>2026-01</td><td>1.50</td><td>4.9</td><td>9</td></tr><tr><td>2026-02</td><td>1.50</td><td>5.9</td><td>9</td></tr><tr><td>2026-03</td><td>1.44</td><td>5.1</td><td>8.5</td></tr><tr><td>2026-04</td><td>1.35</td><td>5</td><td>8.6</td></tr><tr><td>2026-05</td><td>1.34</td><td>5.5</td><td>8.6</td></tr><tr><td>2026-06</td><td>1.44</td><td>4</td><td>8</td></tr><tr><td>2026-07</td><td>1.42</td><td>4</td><td>7.7</td></tr><tr><td>2026-08</td><td>1.40</td><td>4.1</td><td>7.5</td></tr><tr><td>2026-09</td><td>1.40</td><td>3.2</td><td>7.2</td></tr></tbody></table></div>
+<h3 id="48-政策与市场事件时间线">4.8 政策与市场事件时间线</h3>
+<p>每个事件前后 4 周的日均成交额与中证全指变化（事件日所在周不计入前后两侧）：</p>
+<div class="tbl"><table><thead><tr><th>日期</th><th>事件</th><th>类型</th><th>前 4 周日均成交额（亿元）</th><th>后 4 周日均成交额（亿元）</th><th>成交额变化</th><th>指数变化</th><th>来源</th><th>可靠程度</th></tr></thead><tbody><tr><td>2025-07-07</td><td>交易所《程序化交易管理实施细则》施行（高频交易认定、异常交易监控、差异化收费）</td><td>政策</td><td>13,339</td><td>16,816</td><td>+26%</td><td>+6.3%</td><td><a href="https://www.chnfund.com/article/AR471f2f67-bf20-715c-873d-3a190dfce52d">中国基金报</a>、<a href="https://www.stcn.com/article/detail/2445915.html">证券时报</a></td><td>官方媒体报道</td></tr><tr><td>2026-01-14</td><td>监管"降温"组合措施：融资保证金比例由 80% 上调至 100%（日期为报道日）</td><td>政策</td><td>21,292</td><td>25,466</td><td>+20%</td><td>+5.8%</td><td><a href="https://finance.cnr.cn/ycbd/20260114/t20260114_527493326.shtml">央广财经</a></td><td>官方媒体报道</td></tr><tr><td>2026-04-07</td><td>《关于短线交易监管的若干规定》施行；另有自媒体称同时收紧高频交易认定标准（每秒 300 笔降至 15 笔）</td><td>政策</td><td>21,330</td><td>26,209</td><td>+23%</td><td>+5.0%</td><td><a href="https://caifuhao.eastmoney.com/news/20260403204102408912550">东方财富财富号</a></td><td>自媒体，未找到官方原文，高频标准的说法尤其存疑</td></tr><tr><td>2026-06-17</td><td>陆家嘴论坛前后监管表态：重点是净化市场生态、引导长线资金，没有短期刺激措施（日期为报道日）</td><td>政策表态</td><td>28,985</td><td>30,552</td><td>+5%</td><td>-1.0%</td><td><a href="https://finance.sina.com.cn/wm/2026-06-17/doc-inicsvwv3932627.shtml">新浪财经</a></td><td>财经媒体评论</td></tr><tr><td>2026-07-10</td><td>科技（TMT）板块成交额见顶（约 1.7 万亿元），此后 AI、算力等主线资金获利了结</td><td>市场</td><td>31,465</td><td>23,751</td><td>-25%</td><td>-9.3%</td><td><a href="https://m.jiemian.com/article/15186034.html">界面新闻</a>、<a href="https://finance.eastmoney.com/a/202610143895341434.html">东方财富网</a></td><td>财经媒体统计</td></tr><tr><td>2026-09-30</td><td>国庆长假前交投收缩（季节性）</td><td>季节性</td><td>18,187</td><td>15,593</td><td>-14%</td><td>-8.8%</td><td><a href="https://finance.sina.com.cn/money/gzqh/futuresyspzx/2026-09-30/doc-initpxxr2410861.shtml">新浪财经</a></td><td>财经媒体报道</td></tr></tbody></table></div>
+<h2 id="5-发现">5. 发现</h2>
+<ol><li><strong>缩量的大部分可以用"量随价走"解释。</strong> 直接拆分时，指数下跌只占缩量的约四分之一，其余是换手率下降；但换手率本身也随行情变化：涨的时候大家交易更活跃，跌的时候交易减少。按 2019 年以来的量价弹性推算，仅指数从峰值阶段到最近阶段的回落，就对应六成以上的缩量；同周的指数涨跌和成交额变化明显正相关，指数涨跌还领先成交额约一周。所以缩量首先是行情回落的结果，而不是独立的外力。</li><li><strong>杠杆资金和成交额一起见顶、一起回落，但规模不大。</strong> 融资余额的最高点和成交额最高的一周几乎重合，之后融资余额下降约两成；两融交易额本身下降得比总成交额更快，但它只占成交额的一成左右，所以对缩量的贡献只有一成多。杠杆撤退是行情降温的一部分，不是缩量的主因。</li><li><strong>"国家队"等大资金：上涨时卖出降温，下跌时买入托底。</strong> 2026 年 1 月主要宽基 ETF 资金净流出约 7,200 亿元，集中在 1 月中下旬的三周，沪深300、上证50、中证1000、科创50 等多只 ETF 同时被大额赎回；4–6 月又陆续流出约 4,300 亿元。这些流出发生在成交额创新高的时候，和同月的融资保证金上调一起，构成明显的"人为降温"。成交额见顶以后，宽基 ETF 转为净流入，7 月和 10 月尤其集中。数据本身不能确定申赎的是谁，但这种"逆着行情、多只 ETF 同步、规模巨大"的特征，和市场通常理解的"国家队"操作一致。</li><li><strong>人为降温可能促成了见顶，但缩量本身不是人为压出来的。</strong> 降温措施出台后，成交额在接下来 4 周还在上升；真正的缩量从 7 月科技主线见顶后开始，此时大资金已经转为买入。所以如果要说人为因素的作用，更合适的说法是：上涨阶段持续的降温（提高杠杆成本、大资金减持）增加了行情见顶的可能，而见顶以后的缩量主要是市场自身的回落。</li><li><strong>资金面和 IPO 都不是原因。</strong> DR007 在缩量期间没有上升，央行没有收紧；M1 增速偏弱说明资金活化程度低，是经济层面的背景，而不是政策收紧。IPO 募资在 7 月达到 2025 年以来的最高（约 800 亿元），恰好在成交额开始回落的时候，但月度募资只有几百亿元，相对每天上万亿元的成交额，量级上不足以造成缩量。</li><li><strong>量化和高频交易监管的影响说不清。</strong> 2025 年 7 月交易所《程序化交易管理实施细则》施行后的 4 周，成交额反而上升了约四分之一；2026 年"把高频交易认定标准从每秒 300 笔收紧到 15 笔"的说法只见于自媒体，没有找到官方原文。量化交易对成交额的贡献没有公开数据，这一项无法量化，只能作为可能的结构性因素。</li></ol>
+<h2 id="6-局限">6. 局限</h2>
+<ul><li><strong>宽基 ETF 只覆盖上交所的 9 只</strong>，深交所上市的宽基 ETF（如嘉实沪深300）没有纳入；资金进出用"份额变化 × 周收盘价"近似，不是精确的申赎金额；数据不能区分申赎的是谁，"国家队"只是常见的解读。</li><li><strong>量价弹性是相关关系</strong>：价格和成交额相互影响，"能解释六成以上"的意思是"和历史上的量价关系一致"，不是"价格下跌导致了缩量"的因果证明。</li><li><strong>用指数近似市值</strong>，忽略了新股上市、增发和解禁带来的市值变化。</li><li><strong>IPO 只算首发</strong>，没有计入增发、可转债和大股东减持等其他"抽血"渠道。</li><li><strong>政策事件来自媒体报道</strong>，其中 2026 年 4 月高频交易标准收紧的说法没有找到官方原文；事件日期部分是报道日而不是生效日。</li><li><strong>缺少新开户数、北向资金、行业成交结构和量化交易占比</strong>等数据，散户情绪和科技板块的集中退潮只能引用媒体统计。</li><li><strong>"峰值阶段"按日均成交额最高的连续两个月自动确定</strong>；换一个定义（比如用单日最高或 7 月的高点），具体数字会有变化。</li></ul>
+<h2 id="7-结论复核">7. 结论复核</h2>
+<p>正文结论依赖下面这些数据条件。每次更新数据都会重新检查，出现 ✗ 时需要修改对应结论。</p>
+<div class="tbl"><table><thead><tr><th>对应</th><th>依赖的数据条件</th><th>当前数值</th><th>状态</th></tr></thead><tbody><tr><td>发现 1</td><td>成交额较峰值阶段下降超过 40%</td><td>-50%</td><td>✓</td></tr><tr><td>发现 1</td><td>换手率下降对成交额下降的贡献大于指数下跌的贡献</td><td>换手率 74% / 指数 26%</td><td>✓</td></tr><tr><td>发现 2</td><td>按 2019 年以来的量价弹性，指数跌幅可以解释成交额下降的六成以上（按对数）</td><td>推算 -39% / 实际 -50%，解释 70%</td><td>✓</td></tr><tr><td>发现 2</td><td>同周量价正相关明显（相关系数 &gt; 0.3）</td><td>+0.49</td><td>✓</td></tr><tr><td>发现 3</td><td>融资余额最高点不晚于成交额周度最高点后 8 周，即杠杆退潮和缩量基本同步</td><td>融资余额最高 2026-06-25，成交额最高 2026-06-26 当周</td><td>✓</td></tr><tr><td>发现 3</td><td>两融交易额的下降只占成交额下降的一小部分（低于 25%）</td><td>12%</td><td>✓</td></tr><tr><td>发现 4</td><td>成交额见顶以后主要宽基 ETF 为资金净流入，即大资金没有通过宽基 ETF 撤出</td><td>+2,937 亿元</td><td>✓</td></tr><tr><td>发现 4</td><td>上涨阶段主要宽基 ETF 合计净流出超过 5,000 亿元</td><td>-10,537 亿元</td><td>✓</td></tr><tr><td>发现 4</td><td>2026 年 1 月主要宽基 ETF 资金净流出超过 1,000 亿元，即上涨期有大资金减持降温</td><td>-7,234 亿元</td><td>✓</td></tr><tr><td>发现 5</td><td>最近阶段的 IPO 月均募资没有比峰值阶段明显增加（增幅不超过 50%）</td><td>229 → 217 亿元</td><td>✓</td></tr><tr><td>发现 5</td><td>DR007 没有上升（最近阶段不高于峰值阶段 + 0.1 个百分点）</td><td>1.39% → 1.35%</td><td>✓</td></tr></tbody></table></div>
+<p>全部成立。</p>
+<h2 id="9-变更记录">9. 变更记录</h2>
+<div class="tbl"><table><thead><tr><th>日期</th><th>变更</th></tr></thead><tbody><tr><td>2026-10-30</td><td>建立本专题。数据：中证全指成交额、两融、上交所 9 只宽基 ETF 份额与价格、IPO、DR007、M1/M2；方法：成交额分解、量价弹性、领先滞后、杠杆、宽基 ETF 资金进出（自动识别份额拆分合并）、IPO、政策事件前后对比。</td></tr></tbody></table></div>
+  </article>
+  <p class="foot">本页由 tools/build_report.py 根据 docs/ashare/REPORT.md 自动生成，图表数据内嵌在页面中，打开不需要联网。仅用于学习研究，不构成投资建议。</p>
+</div>
+<script>
+const DATA = {"d":["2024-01-05","2024-01-12","2024-01-19","2024-01-26","2024-02-02","2024-02-08","2024-02-23","2024-03-01","2024-03-08","2024-03-15","2024-03-22","2024-03-29","2024-04-03","2024-04-12","2024-04-19","2024-04-26","2024-04-30","2024-05-10","2024-05-17","2024-05-24","2024-05-31","2024-06-07","2024-06-14","2024-06-21","2024-06-28","2024-07-05","2024-07-12","2024-07-19","2024-07-26","2024-08-02","2024-08-09","2024-08-16","2024-08-23","2024-08-30","2024-09-06","2024-09-13","2024-09-20","2024-09-27","2024-09-30","2024-10-11","2024-10-18","2024-10-25","2024-11-01","2024-11-08","2024-11-15","2024-11-22","2024-11-29","2024-12-06","2024-12-13","2024-12-20","2024-12-27","2025-01-03","2025-01-10","2025-01-17","2025-01-24","2025-01-27","2025-02-07","2025-02-14","2025-02-21","2025-02-28","2025-03-07","2025-03-14","2025-03-21","2025-03-28","2025-04-03","2025-04-11","2025-04-18","2025-04-25","2025-04-30","2025-05-09","2025-05-16","2025-05-23","2025-05-30","2025-06-06","2025-06-13","2025-06-20","2025-06-27","2025-07-04","2025-07-11","2025-07-18","2025-07-25","2025-08-01","2025-08-08","2025-08-15","2025-08-22","2025-08-29","2025-09-05","2025-09-12","2025-09-19","2025-09-26","2025-09-30","2025-10-10","2025-10-17","2025-10-24","2025-10-31","2025-11-07","2025-11-14","2025-11-21","2025-11-28","2025-12-05","2025-12-12","2025-12-19","2025-12-26","2025-12-31","2026-01-09","2026-01-16","2026-01-23","2026-01-30","2026-02-06","2026-02-13","2026-02-27","2026-03-06","2026-03-13","2026-03-20","2026-03-27","2026-04-03","2026-04-10","2026-04-17","2026-04-24","2026-04-30","2026-05-08","2026-05-15","2026-05-22","2026-05-29","2026-06-05","2026-06-12","2026-06-18","2026-06-26","2026-07-03","2026-07-10","2026-07-17","2026-07-24","2026-07-31","2026-08-07","2026-08-14","2026-08-21","2026-08-28","2026-09-04","2026-09-11","2026-09-18","2026-09-24","2026-09-30","2026-10-09","2026-10-16","2026-10-23","2026-10-29"],"amt":[7152,6524,6728,7762,7262,9405,8708,10591,9564,10061,10475,9131,9381,8138,9080,8285,10984,9290,8250,8216,7095,7377,7182,6903,6494,5957,6789,6421,6166,7052,6297,5158,5281,5906,5710,5065,5493,10395,25433,24768,16177,18360,20129,23129,20921,16360,14612,16508,18613,14959,13523,13064,11154,11721,12080,11037,15840,17112,18756,19499,16532,16091,15042,12236,11034,15626,10644,11035,10663,13093,12120,11200,10496,11615,13118,11778,14463,13997,14538,15037,18021,17682,16524,20490,25232,29139,25442,22713,24635,22622,21348,25461,21415,17476,22593,19552,19843,18075,16874,16401,18857,17169,19210,20827,27962,34022,27473,30080,23614,20695,23950,25947,24497,21623,20661,18539,20967,23002,25514,25604,30717,32561,29325,31069,28525,27020,30740,34628,33470,28364,25747,24410,21490,23357,22656,21709,19133,18983,18203,17305,18256,14599,17259,15086,15005,15022],"close":[4292.8,4230.1,4117.7,4142.7,3765.7,3985.4,4187.6,4286.5,4285.6,4372.0,4370.8,4310.7,4353.7,4235.4,4226.2,4305.4,4353.9,4425.1,4424.8,4302.1,4288.1,4192.8,4188.8,4119.2,4040.0,3989.4,4036.8,4042.7,3927.6,3956.1,3888.8,3886.6,3806.9,3854.7,3758.2,3681.4,3727.8,4293.1,4706.8,4514.2,4647.3,4767.4,4723.3,5049.4,4847.6,4746.4,4845.9,4956.6,4947.4,4891.5,4864.2,4523.1,4475.6,4636.1,4674.2,4632.7,4796.0,4875.1,4973.1,4847.4,4964.8,5037.2,4931.8,4868.8,4809.7,4603.0,4616.8,4667.6,4666.8,4773.3,4805.4,4771.6,4764.6,4834.9,4813.2,4754.8,4913.7,4969.2,5045.8,5110.4,5221.0,5161.1,5258.8,5412.0,5620.4,5724.0,5642.6,5759.3,5749.1,5760.9,5875.5,5855.6,5652.5,5842.6,5866.6,5903.6,5872.1,5575.5,5732.8,5776.8,5787.9,5777.5,5938.3,5919.1,6217.7,6246.9,6356.8,6259.2,6161.6,6227.5,6398.5,6252.4,6220.7,5965.9,5922.2,5791.5,6090.1,6254.1,6271.2,6342.3,6532.3,6481.3,6479.4,6368.8,6292.2,6196.3,6499.3,6401.0,6404.4,6215.1,5671.8,5687.3,5681.2,5978.3,5991.0,5902.1,5935.0,5830.1,5769.0,5862.0,5788.1,5648.2,5570.3,5289.4,5253.7,5070.5],"fin":[15798,15698,15537,15314,14599,13752,14127,14431,14529,14765,15042,14964,14986,14958,14883,14819,14740,14947,14946,14921,14883,14697,14728,14709,14493,14375,14284,14108,14060,14118,14045,13999,13852,13814,13754,13643,13614,13858,14307,15716,16016,16546,16913,17944,18262,18220,18338,18533,18740,18751,18664,18294,18079,18148,17988,17645,18101,18423,18745,18871,18992,19175,19261,19113,18919,17983,17927,17915,17757,17924,17948,17893,17892,17964,18044,18009,18274,18400,18626,18892,19338,19663,19953,20488,21401,22454,22713,23349,23816,24080,23783,24256,24128,24398,24688,24755,24747,24452,24565,24641,24837,24871,25264,25241,26099,27144,27061,26986,26470,25724,26518,26277,26332,26148,25908,25627,25955,26512,26930,26955,27823,28562,28782,28909,28857,28523,29438,29895,29807,29228,27575,26666,25891,26225,26479,26333,26302,26092,26026,26088,26078,25404,25300,24597,24026,23567],"mtr":[7.58,7.49,7.45,8.01,7.34,6.32,8.81,9.35,9.29,9.46,9.44,8.35,8.79,8.1,8.04,8.21,8.64,8.85,8.75,8.77,8.16,7.97,8.27,8.39,7.86,7.96,8.26,8.1,7.92,8.28,7.85,7.52,7.29,7.46,7.49,7.34,7.72,8.94,10.93,10.66,9.65,9.99,9.6,10.74,10.19,9.15,8.88,9.26,9.26,8.95,9.62,8.73,8.32,9.01,9.49,8.53,10.3,9.84,10.04,9.94,9.42,9.68,9.4,8.66,8.75,8.29,8.38,8.75,8.39,8.9,8.89,8.2,8.22,8.39,8.65,8.54,9.39,9.06,9.37,9.65,10.31,10.48,10.02,10.63,11.15,11.4,10.95,11.42,11.66,11.75,12.03,12.14,10.99,11.17,11.76,10.76,10.84,9.96,10.08,9.94,10.19,10.13,11.08,10.63,11.3,11.17,9.82,9.59,9.16,9.33,10.01,9.15,9.39,9.22,8.95,9.05,9.7,10.11,10.04,9.93,10.48,10.23,9.87,10.13,9.67,9.18,10.42,10.38,9.83,9.17,8.53,8.7,8.69,9.31,9.38,9.2,8.89,8.51,8.47,8.71,9.17,8.26,8.09,7.89,8.08,7.96],"etf":[0,59.0,537.0,1053.0,1411.0,2391.0,2428.0,2478.0,2760.0,2781.0,2746.0,2733.0,2734.0,2673.0,2670.0,2788.0,2869.0,2743.0,2680.0,2658.0,2653.0,2652.0,2725.0,2819.0,3088.0,3198.0,3279.0,4010.0,4335.0,4561.0,4697.0,4886.0,5147.0,5520.0,5604.0,5680.0,5799.0,6302.0,6728.0,7140.0,6884.0,6538.0,6382.0,6352.0,6137.0,5924.0,5911.0,5896.0,5963.0,5878.0,5794.0,5847.0,5784.0,5858.0,5891.0,5824.0,5812.0,5638.0,5407.0,5214.0,5100.0,5116.0,5069.0,5058.0,5093.0,6356.0,6757.0,6716.0,6671.0,6662.0,6603.0,6583.0,6612.0,6587.0,6578.0,6634.0,6564.0,6435.0,6489.0,6420.0,6420.0,6275.0,6209.0,6220.0,6134.0,5932.0,5866.0,5742.0,5632.0,5544.0,5581.0,5646.0,5591.0,5550.0,5684.0,5515.0,5528.0,5700.0,5621.0,5642.0,5660.0,5704.0,5709.0,5612.0,5687.0,4141.0,1324.0,-1622.0,-1786.0,-1971.0,-2136.0,-2332.0,-2415.0,-2252.0,-2224.0,-2276.0,-2289.0,-2443.0,-2835.0,-3400.0,-3953.0,-4510.0,-4937.0,-5312.0,-5337.0,-5275.0,-5676.0,-6520.0,-6930.0,-6824.0,-6097.0,-5844.0,-5477.0,-5730.0,-5934.0,-5908.0,-5897.0,-5831.0,-5793.0,-5735.0,-5735.0,-5629.0,-5480.0,-4923.0,-3955.0,-3583.0],"ipo":[126.2,126.2,126.2,126.2,19.5,19.5,19.5,57.3,57.3,57.3,57.3,57.3,9.3,9.3,9.3,9.3,9.3,22.5,22.5,22.5,22.5,38.8,38.8,38.8,38.8,42.1,42.1,42.1,42.1,47.8,47.8,47.8,47.8,47.8,46.2,46.2,46.2,46.2,46.2,42.7,42.7,42.7,60.0,60.0,60.0,60.0,60.0,83.7,83.7,83.7,83.7,42.2,42.2,42.2,42.2,42.2,34.5,34.5,34.5,34.5,69.2,69.2,69.2,69.2,58.8,58.8,58.8,58.8,58.8,90.0,90.0,90.0,90.0,46.9,46.9,46.9,46.9,224.5,224.5,224.5,224.5,25.6,25.6,25.6,25.6,25.6,109.8,109.8,109.8,109.8,109.8,143.6,143.6,143.6,143.6,194.4,194.4,194.4,194.4,174.4,174.4,174.4,174.4,174.4,105.6,105.6,105.6,105.6,37.8,37.8,37.8,129.3,129.3,129.3,129.3,164.3,164.3,164.3,164.3,164.3,92.1,92.1,92.1,92.1,365.2,365.2,365.2,365.2,794.4,794.4,794.4,794.4,794.4,201.9,201.9,201.9,201.9,232.3,232.3,232.3,232.3,232.3,33.8,33.8,33.8,33.8],"events":[{"d":"2025-07-07","t":"交易所《程序化交易管理实施细则》施行","type":"政策"},{"d":"2026-01-14","t":"监管\"降温\"组合措施：融资保证金比例由 80% 上调至 100%","type":"政策"},{"d":"2026-04-07","t":"《关于短线交易监管的若干规定》施行；另有自媒体称同时收紧高频交易认定","type":"政策"},{"d":"2026-06-17","t":"陆家嘴论坛前后监管表态：重点是净化市场生态、引导长线资金，没有短期刺","type":"政策表态"},{"d":"2026-07-10","t":"科技板块成交额见顶，此后 AI、算力等主线资金获利了结","type":"市场"},{"d":"2026-09-30","t":"国庆长假前交投收缩","type":"季节性"}],"peak":["2026-05","2026-06"],"recent":["2026-09-24","2026-10-29"]};
+const NS = "http://www.w3.org/2000/svg";
+const el = (t, a, p) => { const n = document.createElementNS(NS, t); for (const k in a) n.setAttribute(k, a[k]); if (p) p.appendChild(n); return n; };
+const hEl = (t, props, p) => { const n = document.createElement(t); Object.assign(n, props || {}); if (p) p.appendChild(n); return n; };
+const MONTHS = DATA.d.map(s => new Date(s + "T00:00:00"));
+DATA.m = DATA.d;   // 图表组件按 DATA.m 取日期
+const NARROW = innerWidth < 640;
+
+function niceTicks(lo, hi, target) {
+  const raw = (hi - lo) / target, p = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(k => k * p).find(s => s >= raw);
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
+  return out;
+}
+
+// 阴影：成交额峰值阶段（日均成交额最高的连续两个月）与最近阶段（最近 20 个交易日）
+const SHADE = [[DATA.peak[0] + "-01", DATA.peak[1] + "-31"], DATA.recent];
+
+// 多面板月度图：每幅一个纵轴，标题和图例在上方（放不下自动换行），共用时间轴、阴影和读数
+function chart(svgId, roId, spec) {
+  const svg = document.getElementById(svgId), ro = document.getElementById(roId);
+  svg.textContent = "";
+  const W = svg.clientWidth || 360, M = { l: NARROW ? 40 : 52, r: 12 }, iw = W - M.l - M.r, PH = NARROW ? 110 : 130;
+  const t0 = MONTHS[0].getTime(), t1 = MONTHS.at(-1).getTime();
+  const X = d => M.l + (d.getTime() - t0) / (t1 - t0) * iw;
+  const bands = el("g", {}, svg);
+  let y = 0;
+  const panels = spec.map(p => {
+    y += 14;
+    el("text", { x: 0, y, class: "ptitle" }, svg).textContent = p.title;
+    y += 17;
+    let lx = 0;
+    for (const l of p.lines) {
+      const kt = el("text", { class: "pkey" }, svg);
+      kt.textContent = l.name;
+      const kw = kt.getComputedTextLength();
+      if (lx > 0 && lx + 20 + kw > W) { lx = 0; y += 15; }
+      el("line", { x1: lx, x2: lx + 14, y1: y - 4, y2: y - 4, stroke: l.color, "stroke-width": 2, "stroke-dasharray": l.dash || "none" }, svg);
+      kt.setAttribute("x", lx + 18); kt.setAttribute("y", y);
+      lx += 18 + kw + 16;
+    }
+    const y0 = y + 10;
+    y = y0 + PH + 12;
+    let lo = Infinity, hi = -Infinity;
+    for (const l of p.lines) for (const v of DATA[l.k]) if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    if (p.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+    const Y = v => y0 + (1 - (v - lo) / (hi - lo)) * PH;
+    const g = el("g", { class: "tick" }, svg);
+    for (const v of niceTicks(lo, hi, 4)) {
+      el("line", { x1: M.l, x2: M.l + iw, y1: Y(v), y2: Y(v), stroke: "var(--grid)", "stroke-width": 1 }, g);
+      el("text", { x: M.l - 6, y: Y(v) + 4, "text-anchor": "end" }, g).textContent = Math.abs(v) >= 1000 ? v.toLocaleString("en-US") : String(+v.toFixed(2));
+    }
+    if (p.zero && lo < 0) el("line", { x1: M.l, x2: M.l + iw, y1: Y(0), y2: Y(0), stroke: "var(--axis)", "stroke-width": 1 }, svg);
+    for (const l of p.lines) {
+      let d = "", pen = false;
+      DATA[l.k].forEach((v, i) => {
+        if (v == null) { pen = false; return; }
+        d += (pen ? "L" : "M") + X(MONTHS[i]).toFixed(1) + "," + Y(v).toFixed(1);
+        pen = true;
+      });
+      el("path", { d, fill: "none", stroke: l.color, "stroke-width": 2, "stroke-dasharray": l.dash || "none", "stroke-linejoin": "round" }, svg);
+    }
+    return { p, Y, y0 };
+  });
+  const bottom = y - 12, H = bottom + 22;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  for (const { y0 } of panels)
+    for (const [a, b] of SHADE) {
+      const xa = X(new Date(a + "T00:00:00")), xb = X(new Date(Math.min(new Date(b + "T00:00:00"), MONTHS.at(-1))));
+      el("rect", { x: xa, y: y0, width: Math.max(2, xb - xa), height: PH, fill: "var(--wash)" }, bands);
+    }
+  DATA.events.forEach((ev, n) => {
+    const t = new Date(ev.d + "T00:00:00");
+    if (t < MONTHS[0]) return;
+    const x = X(t);
+    el("line", { x1: x, x2: x, y1: panels[0].y0, y2: bottom, stroke: "var(--text-muted)", "stroke-width": 1, "stroke-dasharray": "2 3" }, bands);
+    el("text", { x: x + 3, y: panels[0].y0 + 11, class: "blabel" }, bands).textContent = "①②③④⑤⑥⑦⑧⑨"[n];
+  });
+  const g = el("g", { class: "tick" }, svg);
+  const span = (t1 - t0) / 3.156e10, every = [1, 2, 4, 5].find(s => iw / span * s >= 44) || 5;
+  for (let yy = MONTHS[0].getFullYear() + 1; yy <= MONTHS.at(-1).getFullYear(); yy++)
+    if (yy % every === 0) el("text", { x: X(new Date(yy, 0, 1)), y: H - 6, "text-anchor": "middle" }, g).textContent = yy;
+  el("line", { x1: M.l, x2: M.l + iw, y1: bottom, y2: bottom, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+  const cross = el("line", { y1: panels[0].y0, y2: bottom, stroke: "var(--text-muted)", "stroke-width": 1 }, svg);
+  const dots = panels.flatMap(({ p }) => p.lines.map(l => el("circle", { r: 3.5, fill: l.color, stroke: "var(--surface-1)", "stroke-width": 2 }, svg)));
+  let cur = DATA.m.length - 1;
+  const select = k => {
+    cur = k;
+    const x = X(MONTHS[k]);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x);
+    ro.textContent = "";
+    const tag = DATA.m[k] >= DATA.recent[0] ? "　最近阶段" : (DATA.m[k] >= DATA.peak[0] + "-01" && DATA.m[k] <= DATA.peak[1] + "-31") ? "　峰值阶段" : "";
+    hEl("div", { className: "d", textContent: DATA.m[k] + " 当周" + (k === DATA.m.length - 1 ? "（最新）" : "") + tag }, ro);
+    const rows = hEl("div", { className: "rows" }, ro);
+    let di = 0;
+    for (const { p, Y } of panels) for (const l of p.lines) {
+      const v = DATA[l.k][k], dot = dots[di++];
+      dot.setAttribute("visibility", v == null ? "hidden" : "visible");
+      if (v != null) { dot.setAttribute("cx", x); dot.setAttribute("cy", Y(v)); }
+      const row = hEl("div", { className: "row" }, rows);
+      hEl("i", {}, row).style.background = l.color;
+      hEl("b", { textContent: v == null ? "—" : (l.fmt ? l.fmt(v) : v.toFixed(2)) }, row);
+      hEl("em", { textContent: l.rname || l.name }, row);
+    }
+  };
+  const pick = e => {
+    const r = svg.getBoundingClientRect(), t = t0 + ((e.clientX - r.left) * W / r.width - M.l) / iw * (t1 - t0);
+    let k = 0;
+    MONTHS.forEach((d, i) => { if (Math.abs(d - t) < Math.abs(MONTHS[k] - t)) k = i; });
+    select(k);
+  };
+  svg.onpointerdown = pick;
+  svg.onpointermove = pick;
+  svg.onkeydown = e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    select(Math.max(0, Math.min(DATA.m.length - 1, cur + (e.key === "ArrowRight" ? 1 : -1))));
+  };
+  select(cur);
+}
+
+const pc1 = v => v.toFixed(1) + "%", pc2 = v => v.toFixed(2) + "%", sg2 = v => (v > 0 ? "+" : "") + v.toFixed(2);
+const yi = v => Math.round(v).toLocaleString("en-US");
+const CHARTS = {
+  sa: [
+    { title: "周日均成交额（亿元，中证全指）", lines: [{ k: "amt", name: "成交额", color: "var(--c-cny)", fmt: yi }] },
+    { title: "中证全指（周收盘）", lines: [{ k: "close", name: "中证全指", color: "var(--c-usd)", fmt: yi }] },
+  ],
+  sb: [
+    { title: "融资余额（亿元）", lines: [{ k: "fin", name: "融资余额", color: "var(--c-cny)", fmt: yi }] },
+    { title: "两融交易额占成交额（%，周均）", lines: [{ k: "mtr", name: "两融交易额占比", color: "var(--c-2)", fmt: v => v.toFixed(2) + "%" }] },
+    { title: "主要宽基 ETF 累计资金净流入（亿元，自 2024 年初）", zero: true, lines: [{ k: "etf", name: "宽基 ETF 累计净流入", color: "var(--c-3)", fmt: v => (v > 0 ? "+" : "") + yi(v) }] },
+    { title: "IPO 当月净募资（亿元）", lines: [{ k: "ipo", name: "IPO 募资（当月）", color: "var(--c-usd)", fmt: yi }] },
+  ],
+};
+// 竖线编号说明（顺序与 REPORT.md 第 4.8 节的事件表一致）
+const evBox = document.getElementById("sa-ev");
+if (evBox) DATA.events.forEach((e, n) => hEl("div", { textContent: `${"①②③④⑤⑥⑦⑧⑨"[n]} ${e.d}　${e.t}` }, evBox));
+function renderAll() { for (const [id, spec] of Object.entries(CHARTS)) if (document.getElementById(id)) chart(id, id + "-ro", spec); }
+renderAll();
+let lastW = innerWidth, rz;
+addEventListener("resize", () => { if (innerWidth === lastW) return; lastW = innerWidth; clearTimeout(rz); rz = setTimeout(renderAll, 150); });
+</script>
+</body>
+</html>
