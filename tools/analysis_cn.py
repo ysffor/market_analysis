@@ -2,7 +2,7 @@
 # 回填 docs/ANALYSIS.md 中 <!-- AUTO:cn_* --> 区块并复核结论依赖的数据条件。
 # RMB liquidity (B) and the impact of USD tightening (A) on it (C): monthly panel, tightness indices, regressions with
 # Newey-West errors, channel decomposition and Fed-tightening event study; refills cn_* AUTO blocks in ANALYSIS.md.
-# 用法 | usage: python -I analysis_cn.py <raw 目录> <docs/ANALYSIS.md> [<输出页面数据 build/cn.json>]
+# 用法 | usage: python -I analysis_cn.py <raw 目录> <docs/ANALYSIS.md> [<输出分析报告页的图表数据 build/cn.json>]
 import bisect, csv, datetime, json, math, re, sys
 import numpy as np
 
@@ -448,6 +448,13 @@ if __name__ == "__main__" and DOC != "-":
     for k, v in blocks.items():
         doc = fill(doc, k, v)
     open(DOC, "w", encoding="utf-8", newline="\n").write(doc)
+    if PAGE:   # 分析报告页的图表数据：月度序列与美元收紧期
+        keys = ["A_price", "A_qty", "B_price", "B_qty", "fr007", "dr007", "shibor3m", "cn10y", "us10y", "m2", "m1", "loan12",
+                "rrr", "policy", "usdcny", "fxres", "spread", "real10y", "dxy", "dff"]
+        rnd = lambda x, k: None if np.isnan(x) else round(float(x), 1 if k in ("fxres", "dxy") else 4)
+        page = {"m": months, **{k: [rnd(x, k) for x in V[k]] for k in keys},
+                "eps": [{"label": e.get("label"), "a": e["span"][0], "b": e["span"][1]} for e in evk]}
+        json.dump(page, open(PAGE, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"ANALYSIS.md（B、C 部分）已更新，数据截至 {months[-1]}；结论复核：{'全部成立' if not bad else f'{bad} 条不成立，需要人工修改结论'}")
 elif DOC == "-":   # 试算：把各区块写到第三个参数指定的文件
     open(PAGE, "w", encoding="utf-8").write("".join(f"\n===== {k}\n{v}\n" for k, v in blocks.items()))

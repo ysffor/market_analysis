@@ -48,7 +48,8 @@ for pair in sys.argv[4:]:
     print(f"页面已生成：{outdir}/{name}")
 PY
 "$PYTHON" -I tools/report.py raw build/data.json "$DOC"
-"$PYTHON" -I tools/analysis_cn.py raw "$DOC"   # B、C 部分
+"$PYTHON" -I tools/analysis_cn.py raw "$DOC" build/cn.json   # B、C 部分，同时输出分析报告页的图表数据
 "$PYTHON" -I tools/verify_report.py raw build/bondfund.json "$VERIFY"
-# 独立的专题验证报告页（VERIFY.md 转 HTML + 交互图表）
-"$PYTHON" -I tools/build_verify_report.py "$VERIFY" build/data.json tools/common.js tools/template_verify.html docs/verify/index.html
+# 独立的报告页：专题验证报告、分析报告（Markdown 转 HTML + 交互图表）
+"$PYTHON" -I tools/build_report.py verify "$VERIFY" build/data.json tools/template_verify.html docs/verify/index.html tools/common.js
+"$PYTHON" -I tools/build_report.py analysis "$DOC" build/cn.json tools/template_analysis.html docs/analysis/index.html

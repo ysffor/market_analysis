@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>美元与人民币流动性：分析报告</title>
+<!--
+  分析报告页：由 tools/build_report.py 把 docs/ANALYSIS.md 转成 HTML 填入正文位置，并在 B、C 部分插入交互图表。
+  图表数据来自 tools/analysis_cn.py 输出的月度序列（构建时内嵌），绘图代码就在本页，电脑与手机共用这一个页面。
+  Standalone analysis report: ANALYSIS.md rendered to HTML, with monthly interactive charts for parts B and C.
+-->
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.05); --link: #2a78d6;
+    --c-usd: #2a78d6; --c-cny: #e34948; --c-2: #1baf7a; --c-3: #6250d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06); --link: #6da7ec;
+      --c-usd: #3987e5; --c-cny: #e66767; --c-2: #199e70; --c-3: #9085e9;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-padding-top: 12px; }
+  body.viz-root {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 15px/1.7 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 20px max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left));
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  a { color: var(--link); }
+  .topnav { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .badge { font-size: 12px; font-weight: 600; border: 1px solid var(--text-primary); border-radius: 4px; padding: 1px 6px; }
+  .report h1 { font-size: 24px; margin: 4px 0 8px; }
+  .report h2 { font-size: 20px; margin: 40px 0 8px; padding-top: 16px; border-top: 2px solid var(--axis); }
+  .report h3 { font-size: 16px; margin: 24px 0 6px; }
+  .report h4 { font-size: 15px; margin: 16px 0 4px; }
+  .report p { margin: 8px 0; }
+  .report ul, .report ol { padding-left: 1.5em; margin: 6px 0; }
+  .report li { margin: 4px 0; }
+  .report blockquote { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--axis); background: var(--wash); border-radius: 0 6px 6px 0; color: var(--text-secondary); }
+  .report code { font-family: ui-monospace, Consolas, monospace; font-size: 0.9em; background: var(--wash); padding: 1px 4px; border-radius: 4px; }
+  .report pre { background: var(--wash); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+  .report pre code { background: none; padding: 0; }
+  .report hr { border: 0; border-top: 1px solid var(--grid); margin: 24px 0; }
+  .tbl { overflow-x: auto; margin: 8px 0 12px; -webkit-overflow-scrolling: touch; }
+  .tbl table { border-collapse: collapse; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  .tbl th, .tbl td { border-bottom: 1px solid var(--grid); padding: 6px 10px; text-align: left; vertical-align: top; }
+  .tbl th { color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--axis); }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 16px 0; line-height: 1.45; }
+  .card-cap { font-size: 12px; color: var(--text-muted); margin: 0 0 6px; }
+  .note-card { font-size: 14px; color: var(--text-secondary); }
+  .readout { font-size: 13px; margin-bottom: 6px; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .readout .d { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
+  .readout .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 16px; }
+  .readout .row { display: grid; grid-template-columns: 14px auto 1fr; gap: 6px; align-items: baseline; }
+  .readout .row i { display: inline-block; width: 12px; height: 2px; border-radius: 1px; align-self: center; }
+  .readout .row b { font-weight: 600; }
+  .readout .row em { font-style: normal; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card svg { width: 100%; display: block; outline: none; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .tick text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ptitle { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
+  .pkey { fill: var(--text-secondary); font-size: 12px; }
+  .blabel { fill: var(--text-muted); font-size: 10px; }
+  .foot { color: var(--text-muted); font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap">
+  <div class="topnav">
+    <span class="badge">分析报告</span>
+    <a href="../index.html">← 返回看板（电脑版）</a>
+    <a href="../mobile.html">看板手机版</a>
+    <a href="../verify/index.html">专题验证报告</a>
+    <a href="https://github.com/ysffor/market_analysis/blob/main/docs/ANALYSIS.md">在 GitHub 上查看原文</a>
+  </div>
+  <article class="report">
+__REPORT__
+  </article>
+  <p class="foot">本页由 tools/build_report.py 根据 docs/ANALYSIS.md 自动生成，图表数据内嵌在页面中，打开不需要联网。仅用于学习研究，不构成投资建议。</p>
+</div>
+<script>
+const DATA = __DATA__;
+const NS = "http://www.w3.org/2000/svg";
+const el = (t, a, p) => { const n = document.createElementNS(NS, t); for (const k in a) n.setAttribute(k, a[k]); if (p) p.appendChild(n); return n; };
+const hEl = (t, props, p) => { const n = document.createElement(t); Object.assign(n, props || {}); if (p) p.appendChild(n); return n; };
+const MONTHS = DATA.m.map(s => new Date(s + "-01T00:00:00"));
+const NARROW = innerWidth < 640;
+
+function niceTicks(lo, hi, target) {
+  const raw = (hi - lo) / target, p = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(k => k * p).find(s => s >= raw);
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
+  return out;
+}
+
+// 美元收紧期：两种定义的并集，用阴影标出
+const SHADE = (() => {
+  const iv = DATA.eps.map(e => [e.a, e.b]).sort();
+  const out = [];
+  for (const [a, b] of iv) { if (out.length && a <= out.at(-1)[1]) out.at(-1)[1] = b > out.at(-1)[1] ? b : out.at(-1)[1]; else out.push([a, b]); }
+  return out;
+})();
+
+// 多面板月度图：每幅一个纵轴，标题和图例在上方（放不下自动换行），共用时间轴、阴影和读数
+function chart(svgId, roId, spec) {
+  const svg = document.getElementById(svgId), ro = document.getElementById(roId);
+  svg.textContent = "";
+  const W = svg.clientWidth || 360, M = { l: NARROW ? 40 : 52, r: 12 }, iw = W - M.l - M.r, PH = NARROW ? 110 : 130;
+  const t0 = MONTHS[0].getTime(), t1 = MONTHS.at(-1).getTime();
+  const X = d => M.l + (d.getTime() - t0) / (t1 - t0) * iw;
+  const bands = el("g", {}, svg);
+  let y = 0;
+  const panels = spec.map(p => {
+    y += 14;
+    el("text", { x: 0, y, class: "ptitle" }, svg).textContent = p.title;
+    y += 17;
+    let lx = 0;
+    for (const l of p.lines) {
+      const kt = el("text", { class: "pkey" }, svg);
+      kt.textContent = l.name;
+      const kw = kt.getComputedTextLength();
+      if (lx > 0 && lx + 20 + kw > W) { lx = 0; y += 15; }
+      el("line", { x1: lx, x2: lx + 14, y1: y - 4, y2: y - 4, stroke: l.color, "stroke-width": 2, "stroke-dasharray": l.dash || "none" }, svg);
+      kt.setAttribute("x", lx + 18); kt.setAttribute("y", y);
+      lx += 18 + kw + 16;
+    }
+    const y0 = y + 10;
+    y = y0 + PH + 12;
+    let lo = Infinity, hi = -Infinity;
+    for (const l of p.lines) for (const v of DATA[l.k]) if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    if (p.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+    const Y = v => y0 + (1 - (v - lo) / (hi - lo)) * PH;
+    const g = el("g", { class: "tick" }, svg);
+    for (const v of niceTicks(lo, hi, 4)) {
+      el("line", { x1: M.l, x2: M.l + iw, y1: Y(v), y2: Y(v), stroke: "var(--grid)", "stroke-width": 1 }, g);
+      el("text", { x: M.l - 6, y: Y(v) + 4, "text-anchor": "end" }, g).textContent = Math.abs(v) >= 1000 ? v.toLocaleString("en-US") : String(+v.toFixed(2));
+    }
+    if (p.zero && lo < 0) el("line", { x1: M.l, x2: M.l + iw, y1: Y(0), y2: Y(0), stroke: "var(--axis)", "stroke-width": 1 }, svg);
+    for (const l of p.lines) {
+      let d = "", pen = false;
+      DATA[l.k].forEach((v, i) => {
+        if (v == null) { pen = false; return; }
+        d += (pen ? "L" : "M") + X(MONTHS[i]).toFixed(1) + "," + Y(v).toFixed(1);
+        pen = true;
+      });
+      el("path", { d, fill: "none", stroke: l.color, "stroke-width": 2, "stroke-dasharray": l.dash || "none", "stroke-linejoin": "round" }, svg);
+    }
+    return { p, Y, y0 };
+  });
+  const bottom = y - 12, H = bottom + 22;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  for (const { y0 } of panels)
+    for (const [a, b] of SHADE) {
+      const xa = X(new Date(a + "-01T00:00:00")), xb = X(new Date(b + "-01T00:00:00"));
+      el("rect", { x: xa, y: y0, width: Math.max(2, xb - xa), height: PH, fill: "var(--wash)" }, bands);
+    }
+  const g = el("g", { class: "tick" }, svg);
+  const span = (t1 - t0) / 3.156e10, every = [1, 2, 4, 5].find(s => iw / span * s >= 44) || 5;
+  for (let yy = MONTHS[0].getFullYear() + 1; yy <= MONTHS.at(-1).getFullYear(); yy++)
+    if (yy % every === 0) el("text", { x: X(new Date(yy, 0, 1)), y: H - 6, "text-anchor": "middle" }, g).textContent = yy;
+  el("line", { x1: M.l, x2: M.l + iw, y1: bottom, y2: bottom, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+  const cross = el("line", { y1: panels[0].y0, y2: bottom, stroke: "var(--text-muted)", "stroke-width": 1 }, svg);
+  const dots = panels.flatMap(({ p }) => p.lines.map(l => el("circle", { r: 3.5, fill: l.color, stroke: "var(--surface-1)", "stroke-width": 2 }, svg)));
+  let cur = DATA.m.length - 1;
+  const select = k => {
+    cur = k;
+    const x = X(MONTHS[k]);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x);
+    ro.textContent = "";
+    const inShade = SHADE.some(([a, b]) => DATA.m[k] >= a && DATA.m[k] <= b);
+    hEl("div", { className: "d", textContent: DATA.m[k] + (k === DATA.m.length - 1 ? "（最新）" : "") + (inShade ? "　美元收紧期" : "") }, ro);
+    const rows = hEl("div", { className: "rows" }, ro);
+    let di = 0;
+    for (const { p, Y } of panels) for (const l of p.lines) {
+      const v = DATA[l.k][k], dot = dots[di++];
+      dot.setAttribute("visibility", v == null ? "hidden" : "visible");
+      if (v != null) { dot.setAttribute("cx", x); dot.setAttribute("cy", Y(v)); }
+      const row = hEl("div", { className: "row" }, rows);
+      hEl("i", {}, row).style.background = l.color;
+      hEl("b", { textContent: v == null ? "—" : (l.fmt ? l.fmt(v) : v.toFixed(2)) }, row);
+      hEl("em", { textContent: l.rname || l.name }, row);
+    }
+  };
+  const pick = e => {
+    const r = svg.getBoundingClientRect(), t = t0 + ((e.clientX - r.left) * W / r.width - M.l) / iw * (t1 - t0);
+    let k = 0;
+    MONTHS.forEach((d, i) => { if (Math.abs(d - t) < Math.abs(MONTHS[k] - t)) k = i; });
+    select(k);
+  };
+  svg.onpointerdown = pick;
+  svg.onpointermove = pick;
+  svg.onkeydown = e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    select(Math.max(0, Math.min(DATA.m.length - 1, cur + (e.key === "ArrowRight" ? 1 : -1))));
+  };
+  select(cur);
+}
+
+const pc1 = v => v.toFixed(1) + "%", pc2 = v => v.toFixed(2) + "%", sg2 = v => (v > 0 ? "+" : "") + v.toFixed(2);
+const CHARTS = {
+  ci: [
+    { title: "价格层收紧指数（越大越紧）", zero: true, lines: [{ k: "A_price", name: "美元", rname: "美元价格层", color: "var(--c-usd)", fmt: sg2 }, { k: "B_price", name: "人民币", rname: "人民币价格层", color: "var(--c-cny)", fmt: sg2 }] },
+    { title: "数量层收紧指数（越大越紧）", zero: true, lines: [{ k: "A_qty", name: "美元", rname: "美元数量层", color: "var(--c-usd)", fmt: sg2 }, { k: "B_qty", name: "人民币", rname: "人民币数量层", color: "var(--c-cny)", fmt: sg2 }] },
+  ],
+  cb: [
+    { title: "利率（%，月均）", lines: [{ k: "fr007", name: "FR007", color: "var(--c-cny)", fmt: pc2 }, { k: "shibor3m", name: "SHIBOR 3 个月", color: "var(--c-2)", fmt: pc2 }, { k: "cn10y", name: "10 年期国债", color: "var(--c-3)", fmt: pc2 }] },
+    { title: "货币增速（同比，%）", lines: [{ k: "m2", name: "M2", color: "var(--c-cny)", fmt: pc1 }, { k: "m1", name: "M1（2025 年起新口径）", color: "var(--c-2)", fmt: pc1 }] },
+    { title: "过去 12 个月新增贷款的同比增速（%）", zero: true, lines: [{ k: "loan12", name: "新增人民币贷款", color: "var(--c-cny)", fmt: pc1 }] },
+    { title: "央行工具（%）", lines: [{ k: "rrr", name: "存款准备金率（大型银行）", color: "var(--c-cny)", fmt: pc1 }, { k: "policy", name: "政策贷款利率（LPR / 基准利率）", color: "var(--c-3)", fmt: pc2 }] },
+  ],
+  cc: [
+    { title: "10 年期国债收益率（%）", lines: [{ k: "cn10y", name: "中国", rname: "中国 10 年期国债", color: "var(--c-cny)", fmt: pc2 }, { k: "us10y", name: "美国", rname: "美国 10 年期国债", color: "var(--c-usd)", fmt: pc2 }] },
+    { title: "中美 10 年期利差（中 − 美，百分点）", zero: true, lines: [{ k: "spread", name: "利差", rname: "中美利差（百分点）", color: "var(--c-3)", fmt: sg2 }] },
+    { title: "美元兑人民币（上升 = 人民币贬值）", lines: [{ k: "usdcny", name: "美元兑人民币", color: "var(--c-usd)", fmt: v => v.toFixed(4) }] },
+    { title: "外汇储备（十亿美元）", lines: [{ k: "fxres", name: "外汇储备", color: "var(--c-cny)", fmt: v => Math.round(v).toLocaleString("en-US") }] },
+  ],
+};
+function renderAll() { for (const [id, spec] of Object.entries(CHARTS)) if (document.getElementById(id)) chart(id, id + "-ro", spec); }
+renderAll();
+let lastW = innerWidth, rz;
+addEventListener("resize", () => { if (innerWidth === lastW) return; lastW = innerWidth; clearTimeout(rz); rz = setTimeout(renderAll, 150); });
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@
 
 <!-- /AUTO:updated -->
 
-配套页面：电脑版 <https://ysffor.github.io/market_analysis/>，手机版 <https://ysffor.github.io/market_analysis/mobile.html>（源文件 `docs/index.html`、`docs/mobile.html`，由更新脚本生成）。本文和页面由同一套数据和脚本生成，更新方法见[第 10 节](#10-更新与维护)。
+配套页面：电脑版 <https://ysffor.github.io/market_analysis/>，手机版 <https://ysffor.github.io/market_analysis/mobile.html>（源文件 `docs/index.html`、`docs/mobile.html`，由更新脚本生成）；本文的网页版（B、C 部分带交互图表）：<https://ysffor.github.io/market_analysis/analysis/>。本文和页面由同一套数据和脚本生成，更新方法见[第 10 节](#10-更新与维护)。
 
 本文分三部分：**A** 美元流动性的趋势，**B** 人民币流动性的趋势，**C** A 对 B 的影响有多大。用数据检验市场说法的**专题验证**另见 [VERIFY.md](VERIFY.md)，两者相互独立。
 
@@ -527,7 +527,7 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 2. `sample.py` 按 15 天采样（专题验证部分按周），写入 `build/data.json`。
 3. 把 `common.js` 和数据内联进两个模板，生成 `docs/index.html`（电脑版）和 `docs/mobile.html`（手机版）。
 4. `report.py` 重算本文 A 部分的 AUTO 区块，`analysis_cn.py` 重算 B、C 部分，并分别重新跑[结论复核](#103-结论复核)；`verify_report.py`、`verify2.py` 对 VERIFY.md 中的验证 1、验证 2 做同样的事（`verify2.py` 在生成页面之前运行，同时输出页面数据）。
-5. `build_verify_report.py` 把更新后的 VERIFY.md 转成独立的专题验证报告页 `docs/verify/index.html`，并嵌入交互图表。
+5. `build_report.py` 把更新后的 VERIFY.md、本文分别转成独立的报告页：专题验证报告 `docs/verify/index.html`、分析报告 `docs/analysis/index.html`（B、C 部分嵌入月度交互图表，图表数据由 `analysis_cn.py` 输出到 `build/cn.json`）。
 
 依赖：bash、curl、Python 3（需要 numpy，见 `requirements.txt`）。Windows 上用 Git Bash 运行。
 
@@ -602,7 +602,9 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 | `tools/analysis_cn.py` | 计算本文 B、C 部分：月度面板、收紧指数、回归、渠道分解、事件研究、结论复核 |
 | `tools/fetch_funds.py`、`tools/replica.py`、`tools/verify_report.py` | 专题验证 1：下载二级债基净值、复刻 885007、计算并回填 VERIFY.md |
 | `tools/verify2.py` | 专题验证 2：回测红利指数均线策略、回填 VERIFY.md、输出页面数据 |
-| `tools/build_verify_report.py`、`tools/template_verify.html` | 把 VERIFY.md 转成独立的专题验证报告页 `docs/verify/index.html` |
+| `tools/build_report.py` | 把 VERIFY.md、本文转成独立的报告页（Markdown 转 HTML，插入交互图表） |
+| `tools/template_verify.html`、`tools/template_analysis.html` | 专题验证报告页、分析报告页的模板 |
+| `docs/verify/index.html`、`docs/analysis/index.html` | 生成的专题验证报告页、分析报告页 |
 | `raw/` | 下载的原始数据（只放下载文件，不进 git） |
 | `build/data.json` | 采样后的数据（不进 git） |
 | `docs/index.html`、`docs/mobile.html` | 生成的电脑版、手机版页面，通过 GitHub Pages 公开发布 |
@@ -611,6 +613,7 @@ bash tools/update.sh --no-fetch  # 不下载任何数据，用 raw/ 里已有的
 
 | 日期 | 变更 |
 |---|---|
+| 2026-10-30 | 新增分析报告页 `docs/analysis/index.html`：由本文自动生成，B、C 部分嵌入三张月度交互图表（人民币流动性主要指标、收紧指数对比、传导渠道）；报告生成脚本统一为 `tools/build_report.py`；看板和专题验证报告页加了入口。 |
 | 2026-10-30 | 本文改为 A / B / C 三部分：原有的美元流动性分析成为 A（第 4 节，内容不变）；新增 B 人民币流动性（第 5 节）和 C 美元收紧对人民币流动性的影响（第 6 节），数据来自中国货币网、东方财富和 FRED，B、C 的数字由新脚本 `tools/analysis_cn.py` 回填并复核结论。章节编号随之调整：原第 5–9 节改为第 7–11 节。 |
 | 2026-10-28 | 页面底部新增独立的"专题验证"板块（验证 1：沪深300全收益跌破二级债基指数，就是底部？），内容和结论放在新文档 VERIFY.md，与本文的分析分开；更新脚本增加中证指数和二级债基净值的下载，新增 `--no-funds` 选项。本文的分析内容没有变化。 |
 | 2026-10-23 | 新增手机版页面 `docs/mobile.html`（读数固定在图上方，点按或拖动选点）；两个页面的共用逻辑抽到 `tools/common.js`；电脑版在窄屏上提示切换到手机版。 |

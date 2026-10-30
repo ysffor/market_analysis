@@ -1,12 +1,19 @@
-# 生成独立的专题验证报告页 docs/verify/index.html：把 docs/VERIFY.md 转成 HTML，在每条验证的"方法与数据"之前插入交互图表，
-# 图表复用 tools/common.js，数据只内嵌验证部分。Markdown 转换只覆盖 VERIFY.md 用到的语法（标题、段落、列表、表格、引用、粗体、
-# 行内代码、链接），不引入额外依赖。
-# Build the standalone verification report page from VERIFY.md plus the interactive verification cards.
-# 用法 | usage: python -I build_verify_report.py <VERIFY.md> <build/data.json> <common.js> <template_verify.html> <输出 index.html>
+# 生成独立的报告页：把 Markdown 文档转成 HTML，并在指定位置插入交互图表。
+#   verify   docs/VERIFY.md   → docs/verify/index.html：每条验证的"方法与数据"之前插入验证图表（复用 tools/common.js）
+#   analysis docs/ANALYSIS.md → docs/analysis/index.html：A 部分放看板链接，B、C 部分插入月度图表（绘图代码在模板里）
+# Markdown 转换只覆盖这两份文档用到的语法（标题、段落、列表、表格、引用、代码块、粗体、行内代码、链接），不引入额外依赖。
+# 面向维护者的章节（VERIFY.md 的"维护"、ANALYSIS.md 的"更新与维护"）不放进报告；指向报告里不存在的章节的链接改指向 GitHub 原文。
+# Build the standalone report pages from VERIFY.md / ANALYSIS.md with interactive charts inserted.
+# 用法 | usage:
+#   python -I build_report.py verify   <VERIFY.md>   <build/data.json> <template_verify.html>   <输出> <common.js>
+#   python -I build_report.py analysis <ANALYSIS.md> <build/cn.json>   <template_analysis.html> <输出>
 import html, json, os, re, sys
 
-SRC, DATA_JSON, COMMON, TPL, OUT = sys.argv[1:6]
+MODE, SRC, DATA_JSON, TPL, OUT = sys.argv[1:6]
+COMMON = sys.argv[6] if len(sys.argv) > 6 else None
 REPO = "https://github.com/ysffor/market_analysis/blob/main/docs/"
+SELF = {"verify": "VERIFY.md", "analysis": "ANALYSIS.md"}[MODE]
+OTHER = {"verify": ("ANALYSIS.md", "../analysis/index.html"), "analysis": ("VERIFY.md", "../verify/index.html")}[MODE]
 
 CARDS = {
     "1": """<div class="card" id="verify">
@@ -41,8 +48,18 @@ CARDS = {
   <p class="reading" id="v2-sum"></p>
   <a id="v2-doc" hidden></a>
 </div>""",
+    "A": """<div class="card note-card">A 部分的交互图表（黄金、原油、美债走势，价格层与数量层，拆解，领先滞后）在看板上：
+<a href="../index.html">电脑版</a> · <a href="../mobile.html">手机版</a>。</div>""",
+    "cb": """<div class="card"><p class="card-cap">交互图表：人民币流动性的主要指标（月度）。阴影为美元收紧期（加息期或美元走强期，见第 6.3 节）；点按或悬停查看数值。</p>
+  <div class="readout" id="cb-ro"></div><svg id="cb" tabindex="0" role="img" aria-label="人民币利率、货币增速、新增贷款与央行工具"></svg></div>""",
+    "ci": """<div class="card"><p class="card-cap">交互图表：美元与人民币的收紧指数（月度，数值越大越紧）。阴影为美元收紧期；点按或悬停查看数值。</p>
+  <div class="readout" id="ci-ro"></div><svg id="ci" tabindex="0" role="img" aria-label="美元与人民币价格层、数量层收紧指数"></svg></div>""",
+    "cc": """<div class="card"><p class="card-cap">交互图表：传导渠道（月度）。阴影为美元收紧期；点按或悬停查看数值。</p>
+  <div class="readout" id="cc-ro"></div><svg id="cc" tabindex="0" role="img" aria-label="中美国债收益率、利差、美元兑人民币与外汇储备"></svg></div>""",
 }
-
+# analysis 模式：在这些标题之前插入对应的卡片
+ANALYSIS_INSERT = {"### 4.1 发现 1：三者反映的是美元的价格，不是数量": "A", "### 5.3 发现": "cb",
+                   "### 6.1 整体解释力": "ci", "### 6.3 事件研究": "cc"}
 
 SEEN = {}
 
@@ -58,18 +75,24 @@ def slug(text):
 def link_url(u):
     if u.startswith(("http://", "https://", "#")):
         return u
-    if u.startswith("VERIFY.md"):
-        return u[len("VERIFY.md"):] or "#"
-    return REPO + u          # 其他相对链接（如 ANALYSIS.md）指向 GitHub 上的原文
+    if u.startswith(SELF):
+        return u[len(SELF):] or "#"
+    if u.startswith(OTHER[0]):
+        return OTHER[1] + u[len(OTHER[0]):]       # 另一份文档有自己的报告页
+    if u.startswith("../"):
+        return u
+    return REPO + u
 
 
 def inline(s):
     codes = []
     s = re.sub(r"`([^`]+)`", lambda m: codes.append(m.group(1)) or f"\x00{len(codes)-1}\x00", s)
+    s = s.replace("\\*", "\x01")          # Markdown 转义的星号（如显著性标记的说明），最后还原成 *
     s = html.escape(s, quote=False)
     s = re.sub(r"&lt;(https?://[^&\s]+)&gt;", lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', s)
     s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", lambda m: f'<a href="{html.escape(link_url(m.group(2)))}">{m.group(1)}</a>', s)
     s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+    s = s.replace("\x01", "*")
     return re.sub(r"\x00(\d+)\x00", lambda m: f"<code>{html.escape(codes[int(m.group(1))], quote=False)}</code>", s)
 
 
@@ -78,7 +101,7 @@ LIST_RE = re.compile(r"^(\s*)([-*]|\d+\.)\s+")
 
 def table(rows):
     cells = [[c.strip() for c in r.strip().strip("|").split("|")] for r in rows]
-    head, body = cells[0], [r for r in cells[2:]]
+    head, body = cells[0], cells[2:]
     out = ['<div class="tbl"><table><thead><tr>'] + [f"<th>{inline(c)}</th>" for c in head] + ["</tr></thead><tbody>"]
     for r in body:
         out.append("<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>")
@@ -95,12 +118,20 @@ def blocks(lines):
 
     def starts_block(l):
         s = l.strip()
-        return (not s or s.startswith(("#", ">", "|", "<!--", "@@CARD")) or s == "---" or LIST_RE.match(l))
+        return (not s or s.startswith(("#", ">", "|", "<!--", "@@CARD", "```")) or s == "---" or LIST_RE.match(l))
 
     while i < n:
         line, s = lines[i], lines[i].strip()
         if not s:
             i += 1
+        elif s.startswith("```"):
+            code = []
+            i += 1
+            while i < n and not lines[i].strip().startswith("```"):
+                code.append(lines[i])
+                i += 1
+            i += 1
+            out.append("<pre><code>" + html.escape("\n".join(code), quote=False) + "</code></pre>")
         elif s.startswith("<!--"):
             while i < n and "-->" not in lines[i]:
                 i += 1
@@ -153,7 +184,8 @@ def blocks(lines):
                     i += 1
                 items.append(body)
             tag = "ol" if ordered else "ul"
-            out.append(f"<{tag}>" + "".join(f"<li>{unwrap(blocks(b))}</li>" for b in items) + f"</{tag}>")
+            start = f' start="{m0}"' if ordered and (m0 := int(LIST_RE.match(line).group(2)[:-1])) != 1 else ""
+            out.append(f"<{tag}{start}>" + "".join(f"<li>{unwrap(blocks(b))}</li>" for b in items) + f"</{tag}>")
         else:
             para = []
             while i < n and not starts_block(lines[i]):
@@ -166,28 +198,36 @@ def blocks(lines):
     return "\n".join(out)
 
 
-# 读入 VERIFY.md：去掉面向维护者的"维护"一节；在每条验证的"方法与数据"前插入对应的交互图表
+# 读入文档：去掉面向维护者的章节，按模式插入图表卡片
 src, lines, cur, skip = open(SRC, encoding="utf-8").read().splitlines(), [], None, False
 for l in src:
     if l.startswith("## "):
-        skip = l.strip() == "## 维护"
+        skip = l.strip() in ("## 维护",) or bool(re.match(r"## \d+\. 更新与维护", l.strip()))
         m = re.match(r"## 验证 (\d+)", l)
         cur = m.group(1) if m else None
     if skip:
         continue
-    if l.strip() == "### 方法与数据" and cur in CARDS:
+    if MODE == "verify" and l.strip() == "### 方法与数据" and cur in CARDS:
         lines += [f"@@CARD{cur}@@", ""]
+    if MODE == "analysis" and l.strip() in ANALYSIS_INSERT:
+        lines += [f"@@CARD{ANALYSIS_INSERT[l.strip()]}@@", ""]
     lines.append(l)
 report = blocks(lines)
-assert all(f'id="{k}"' in report for k in ("verify", "verify2")), "图表卡片没有插入，VERIFY.md 的结构可能变了"
+need = {"verify": ('id="verify"', 'id="verify2"'), "analysis": ('id="cb"', 'id="ci"', 'id="cc"', "note-card")}[MODE]
+assert all(k in report for k in need), "图表卡片没有全部插入，文档的结构可能变了"
+# 报告里没有的锚点（例如被略去的"更新与维护"）改指向 GitHub 原文
+ids = set(re.findall(r'id="([^"]+)"', report))
+report = re.sub(r'href="#([^"]+)"', lambda m: m.group(0) if m.group(1) in ids else f'href="{REPO}{SELF}#{m.group(1)}"', report)
 
 d = json.load(open(DATA_JSON, encoding="utf-8"))
-data = {"dates": [], "verify": d["verify"], "verify2": d["verify2"]}
+data = {"dates": [], "verify": d["verify"], "verify2": d["verify2"]} if MODE == "verify" else d
 t = open(TPL, encoding="utf-8").read()
-assert t.count("__REPORT__") == 1 and t.count("__DATA__") == 1 and t.count("/*__COMMON__*/") == 1
-t = t.replace("/*__COMMON__*/", open(COMMON, encoding="utf-8").read(), 1)
+assert t.count("__REPORT__") == 1 and t.count("__DATA__") == 1
+if MODE == "verify":
+    assert t.count("/*__COMMON__*/") == 1 and COMMON
+    t = t.replace("/*__COMMON__*/", open(COMMON, encoding="utf-8").read(), 1)
 t = t.replace("__DATA__", json.dumps(data, ensure_ascii=False, separators=(",", ":")), 1)
 t = t.replace("__REPORT__", report, 1)
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 open(OUT, "w", encoding="utf-8", newline="\n").write(t)
-print(f"验证报告页已生成：{OUT}")
+print(f"报告页已生成：{OUT}")
