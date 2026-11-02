@@ -224,7 +224,7 @@ def main():
         time.sleep(args.wait)
     open(os.path.join(OUT, f"signals_{T}.md"), "w", encoding="utf-8", newline="\n").write(md)
     hist[T] = row
-    json.dump(hist, open(hpath, "w", encoding="utf-8"), ensure_ascii=False, indent=1, sort_keys=True)
+    json.dump(hist, open(hpath, "w", encoding="utf-8", newline="\n"), ensure_ascii=False, indent=1, sort_keys=True)
     write_index(hist)
     log(f"已生成 signals_{T}.md（数据{'齐全' if row['complete'] else '不全'}；积极 {row['pos']}、偏弱 {row['neg']}）")
 
