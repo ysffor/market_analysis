@@ -2,7 +2,7 @@
 
 <!-- AUTO:updated -->
 
-数据截至 2026-10-29，由 `tools/update.sh` 于 2026-10-30 生成。
+数据截至 2026-10-29，由 `tools/update.sh` 于 2026-11-02 生成。
 
 <!-- /AUTO:updated -->
 

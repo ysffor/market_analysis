@@ -12,6 +12,7 @@
 - **分析文档**（[docs/ANALYSIS.md](docs/ANALYSIS.md)）：A / B / C 三部分的分析思路、方法、主要发现、判断流程和局限。目前看板页面只展示 A 部分；B、C 部分的结果在文档和分析报告页（`docs/analysis/index.html`，带交互图表）里。
 - **验证文档**（[docs/VERIFY.md](docs/VERIFY.md)）：每条验证的说法、结论、方法与数据、结果和局限。
 - **A 股成交额专题**（[docs/ashare/REPORT.md](docs/ashare/REPORT.md)，网页版 `docs/ashare/index.html`）：A 股成交额腰斩的原因拆解（行情回落、杠杆资金、宽基 ETF 资金进出、IPO、资金面、政策事件），独立于上面两份文档。
+- **A 股信号日报**（[docs/watch/](docs/watch/README.md)）：每个工作日早上由 Windows 计划任务运行 `tools/watch.py`，按 A 股专题列出的短期信号（成交额、宽基 ETF 资金、融资余额、10 年期美债收益率、指数位置）生成 `signals_<交易日>.md`。
 
 这些文档里的数字都由脚本自动计算回填，每次更新还会复核结论是否仍然成立。
 
@@ -57,6 +58,7 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 │   ├── analysis/index.html  生成的分析报告页
 │   ├── ashare/REPORT.md  A 股成交额专题文档（AUTO 区块由脚本生成）
 │   ├── ashare/index.html  生成的 A 股成交额专题报告页
+│   ├── watch/           A 股信号日报：signals_<交易日>.md、目录 README.md、history.json（脚本生成）
 │   └── .nojekyll
 ├── tools/
 │   ├── update.sh        一键更新
@@ -77,6 +79,8 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 │   ├── verify_report.py 验证 1：计算验证文档里的数字、复核结论
 │   ├── verify2.py       验证 2：回测红利指数均线策略、回填验证文档、输出页面数据
 │   ├── ashare.py        A 股成交额专题：分解、量价弹性、杠杆、宽基 ETF、IPO、事件，回填专题文档
+│   ├── watch.py         A 股信号日报（单独运行，不在 update.sh 里）
+│   ├── watch_task.ps1   注册信号日报的 Windows 计划任务（工作日 08:50）
 │   └── build_report.py  把 VERIFY.md、ANALYSIS.md、ashare/REPORT.md 转成独立的报告页，并嵌入交互图表
 ├── raw/                 下载的原始数据（不进 git）
 └── build/               中间数据（不进 git）
@@ -103,6 +107,7 @@ bash tools/update.sh        # 下载数据 → 生成两个页面 → 更新 ANA
 | A 股成交额、中证全指（A 股专题） | 中证指数官网，`000985` |
 | 两融余额与交易额、新股发行净募资（A 股专题） | 东方财富数据中心 |
 | 宽基 ETF 份额（A 股专题） | 上海证券交易所，9 只主要宽基 ETF 每周份额；周收盘价来自东方财富 |
+| 宽基 ETF 每日份额与收盘价、10 年期美债收益率（信号日报） | 上海证券交易所；腾讯行情；东方财富数据中心 |
 
 ## 数据许可
 
